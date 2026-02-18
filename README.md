@@ -63,7 +63,7 @@ Scan source files and generate a registry manifest.
 
 ```bash
 bunx ui8kit@latest scan
-bunx ui8kit@latest scan --cwd ./apps/engine
+bunx ui8kit@latest scan --cwd ./src/components
 bunx ui8kit@latest scan --source ./src --output ./src/registry.json
 ```
 
