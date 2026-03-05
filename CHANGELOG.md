@@ -2,6 +2,11 @@
 
 ## [1.2.2] - 2026-03-05
 
+### Final
+- Release status: Ready.
+- Build and checks: `npm run build`, `npm run type-check`, and `npm run test` pass.
+- Validation report: `REPORT.md` with 17 command checks (all passing).
+
 ### Added
 - `info` command for environment diagnostics (`ui8kit info`) including CLI version, runtime, config status, CDN and cache health.
 - Progressive multi-component install feedback in `add` (`[n/total]` progress markers).

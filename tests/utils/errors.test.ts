@@ -6,7 +6,7 @@ describe("typed error utilities", () => {
   it("creates registry not found error with suggestion", () => {
     const error = new RegistryNotFoundError("button", "ui")
     expect(error.message).toBe(`Component "button" was not found in ui registry.`)
-    expect(error.suggestion).toBe("Run \"npx ui8kit@latest add --all --registry ui\"")
+    expect(error.suggestion).toBe("Run \"npx ui8kit@latest add --all --registry ui\" to list available components")
   })
 
   it("creates config not found error with suggestion", () => {

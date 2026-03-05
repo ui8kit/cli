@@ -76,22 +76,11 @@ export async function diffCommand(componentName?: string, options: DiffOptions =
         continue
       }
 
-      const matchedRemote = remoteComponent
-      if (!matchedRemote) {
-        results.push({
-          component: item.name,
-          type: remoteComponent.type,
-          status: "missing-remote",
-          files: [{ path: item.filePath, changed: false }]
-        })
-        continue
-      }
-
-      const fileSummary = await compareComponentFiles(item, matchedRemote, defaultConfig)
+      const fileSummary = await compareComponentFiles(item, remoteComponent, defaultConfig)
       const hasChanges = fileSummary.some(file => file.changed)
       results.push({
         component: item.name,
-        type: matchedRemote.type,
+      type: remoteComponent.type,
         status: hasChanges ? "update" : "up-to-date",
         files: fileSummary
       })

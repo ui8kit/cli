@@ -45,11 +45,27 @@ function pickAliasForImport(
   const [root] = trimmed.split("/")
   const rootAlias = `@/${root}`
 
-  const directAlias = Array.from(configuredAliases.keys()).find(alias =>
-    pathValue === alias || pathValue.startsWith(`${alias}/`)
-  )
+  const directAlias = Array.from(configuredAliases.keys())
+    .filter(alias => pathValue === alias || pathValue.startsWith(`${alias}/`))
+    .sort((a, b) => b.length - a.length)[0]
   if (directAlias) {
-    return pathValue
+    const aliasValue = configuredAliases.get(directAlias)
+    if (!aliasValue || !aliasValue.startsWith("@/")) {
+      return undefined
+    }
+
+    const remainder = pathValue.slice(directAlias.length).replace(/^\/+/, "")
+    if (!remainder) {
+      return aliasValue
+    }
+
+    const remainderParts = remainder.split("/")
+    const targetParts = normalizeAliasKey(aliasValue).replace(/^@\//, "").split("/")
+    const aliasTail = targetParts[targetParts.length - 1]
+    const normalizedRemainder = (remainderParts[0] === aliasTail)
+      ? remainderParts.slice(1).join("/")
+      : remainder
+    return normalizedRemainder ? `${aliasValue}/${normalizedRemainder}` : aliasValue
   }
 
   const defaultAliasCandidates = Array.from(normalizeDefaultAliases().keys())

@@ -54,6 +54,7 @@ bunx ui8kit@latest add --all
 bunx ui8kit@latest add badge --force
 bunx ui8kit@latest add button --dry-run
 bunx ui8kit@latest add --all --retry
+bunx ui8kit@latest --no-cache add button --dry-run
 ```
 
 Calling `add` without component arguments opens an interactive multiselect list grouped by component type.
@@ -127,9 +128,15 @@ Show local environment and configuration diagnostics.
 
 ```bash
 bunx ui8kit@latest info
+bunx ui8kit@latest --no-cache info
 ```
 
 Use `--no-cache` in any command to skip reading cached registry data.
+
+```bash
+bunx ui8kit@latest --no-cache diff
+bunx ui8kit@latest --no-cache list --json
+```
 
 ### `scan`
 
