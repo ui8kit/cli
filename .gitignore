@@ -12,3 +12,4 @@ package-lock.json
 **/*.tsbuildinfo
 bash.exe.*
 .manual/
+.test-app/

@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "description": "A CLI for adding UI components to your Vite React projects (UI8Kit core/blocks registries)",
   "type": "module",
   "bin": {
