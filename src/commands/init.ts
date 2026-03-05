@@ -1,10 +1,11 @@
 import chalk from "chalk"
 import prompts from "prompts"
-import ora from "ora"
-import { isViteProject, hasReact, getConfig, saveConfig, ensureDir } from "../utils/project.js"
+import ora, { type Ora } from "ora"
+import { isViteProject, hasReact, findConfig, saveConfig, ensureDir } from "../utils/project.js"
 import { Config, Component } from "../registry/schema.js"
 import { SCHEMA_CONFIG, getCdnUrls, type RegistryType } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
+import { installDependencies } from "../utils/package-manager.js"
 import path from "path"
 import fs from "fs-extra"
 import fetch from "node-fetch"
@@ -16,7 +17,6 @@ interface InitOptions {
 
 export async function initCommand(options: InitOptions) {
   const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
-  const registryPath = `./${registryName}`
   
   console.log(chalk.blue(`🚀 ${CLI_MESSAGES.info.initializing(registryName)}`))
   
@@ -35,8 +35,8 @@ export async function initCommand(options: InitOptions) {
     process.exit(1)
   }
   
-  // Check if already initialized for this registry
-  const existingConfig = await getConfig("./src")
+  // Check if already initialized (root first, then backward-compatible locations)
+  const existingConfig = await findConfig(registryName)
   if (existingConfig && !options.yes) {
     const { overwrite } = await prompts({
       type: "confirm",
@@ -90,8 +90,8 @@ export async function initCommand(options: InitOptions) {
   const spinner = ora(CLI_MESSAGES.info.initializing(registryName)).start()
   
   try {
-    // Save configuration under ./src
-    await saveConfig(config, "./src")
+    // Save configuration at project root
+    await saveConfig(config)
     
     // Create src-based directory structure
     await ensureDir(config.libDir)
@@ -105,6 +105,12 @@ export async function initCommand(options: InitOptions) {
     
     // Install utils and all variants from registry
     await installCoreFiles(registryName as RegistryType, config, spinner)
+
+    // Install packages required by src/lib/utils.ts (cn helper).
+    spinner.text = "Installing core dependencies..."
+    await installDependencies(["clsx", "tailwind-merge"], {
+      useSpinner: false
+    })
     
     spinner.succeed(CLI_MESSAGES.success.initialized(registryName))
     
@@ -127,18 +133,22 @@ export async function initCommand(options: InitOptions) {
   }
 }
 
-async function installCoreFiles(registryType: RegistryType, config: Config, spinner: ora.Ora): Promise<void> {
+interface RegistryIndex {
+  components: Array<{ name: string; type: string }>
+}
+
+async function installCoreFiles(registryType: RegistryType, config: Config, spinner: Ora): Promise<void> {
   const cdnUrls = getCdnUrls(registryType)
   
   // Try to fetch registry index to get list of variants and utils
-  let registryIndex: { components: Array<{ name: string; type: string }> } | null = null
+  let registryIndex: RegistryIndex | null = null
   
   for (const baseUrl of cdnUrls) {
     try {
       const indexUrl = `${baseUrl}/index.json`
       const response = await fetch(indexUrl)
       if (response.ok) {
-        registryIndex = await response.json() as typeof registryIndex
+        registryIndex = await response.json() as RegistryIndex
         break
       }
     } catch {

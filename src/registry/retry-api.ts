@@ -150,20 +150,33 @@ async function getRegistryIndexWithRetry(registryType: RegistryType): Promise<an
 /**
  * Find component by type from index, then fetch directly from correct folder with retry
  */
-async function getComponentByTypeWithRetry(name: string, registryType: RegistryType): Promise<Component | null> {
+async function getComponentByTypeWithRetry(
+  name: string,
+  registryType: RegistryType,
+  excludeTypes: string[] = []
+): Promise<Component | null> {
   try {
     // 1. Get index to find component metadata
     const index = await getRegistryIndexWithRetry(registryType)
     
     // 2. Find component in index
-    const componentInfo = index.components?.find((c: any) => c.name === name)
+    const normalizedName = name.toLowerCase()
+    const componentInfo = index.components?.find(
+      (c: any) =>
+        typeof c?.name === "string" &&
+        c.name.toLowerCase() === normalizedName &&
+        !excludeTypes.includes(c.type)
+    )
     if (!componentInfo) {
       console.log(`❌ Component ${name} not found in ${registryType} registry`)
       return null
     }
     
     // 3. Determine folder by component type
-    const folder = TYPE_TO_FOLDER[componentInfo.type as keyof typeof TYPE_TO_FOLDER]
+    const folder =
+      componentInfo.type === "registry:variants"
+        ? "components/variants"
+        : TYPE_TO_FOLDER[componentInfo.type as keyof typeof TYPE_TO_FOLDER]
     if (!folder) {
       console.log(`❌ Unknown component type: ${componentInfo.type}`)
       return null
@@ -180,7 +193,11 @@ async function getComponentByTypeWithRetry(name: string, registryType: RegistryT
   }
 }
 
-export async function getComponentWithRetry(name: string, registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType): Promise<Component | null> {
+export async function getComponentWithRetry(
+  name: string,
+  registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
+  excludeTypes: string[] = []
+): Promise<Component | null> {
   try {
     if (isUrl(name)) {
       // If this is a URL - load directly
@@ -193,7 +210,7 @@ export async function getComponentWithRetry(name: string, registryType: Registry
     }
     
     // Use optimized type-based lookup instead of category searching
-    return await getComponentByTypeWithRetry(name, registryType)
+    return await getComponentByTypeWithRetry(name, registryType, excludeTypes)
     
   } catch (error) {
     console.error(`❌ Failed to fetch ${name} from ${registryType}:`, (error as Error).message)
@@ -208,7 +225,10 @@ async function fetchFromUrlWithRetry(url: string): Promise<Component | null> {
   return componentSchema.parse(data)
 }
 
-export async function getAllComponentsWithRetry(registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType): Promise<Component[]> {
+export async function getAllComponentsWithRetry(
+  registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
+  excludeTypes: string[] = []
+): Promise<Component[]> {
   try {
     console.log(`🌐 Fetching all ${registryType} components with retry logic`)
     
@@ -224,7 +244,10 @@ export async function getAllComponentsWithRetry(registryType: RegistryType = SCH
     // Get all components from the index
     if (indexData.components && Array.isArray(indexData.components)) {
       for (const componentInfo of indexData.components) {
-        const component = await getComponentWithRetry(componentInfo.name, registryType)
+        if (excludeTypes.includes(componentInfo.type)) {
+          continue
+        }
+        const component = await getComponentWithRetry(componentInfo.name, registryType, excludeTypes)
         if (component) {
           components.push(component)
         }

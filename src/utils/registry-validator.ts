@@ -1,7 +1,9 @@
 import fs from "fs-extra"
 import path from "path"
 import chalk from "chalk"
-import { SCHEMA_CONFIG } from "./schema-config.js"
+import prompts from "prompts"
+import { findConfig } from "./project.js"
+import { initCommand } from "../commands/init.js"
 
 export interface ValidationResult {
   isValid: boolean
@@ -37,49 +39,8 @@ export async function getUtilityComponents(): Promise<string[]> {
  * Get detailed component information by category
  */
 export async function getUtilityComponentsByCategory(): Promise<Record<string, string[]>> {
-  const utilityPath = path.join(process.cwd(), "utility")
-  const componentsByCategory: Record<string, string[]> = {}
-  
-  // Check all component categories
-  for (const category of SCHEMA_CONFIG.componentCategories) {
-    const categoryPath = path.join(utilityPath, category)
-    
-    if (await fs.pathExists(categoryPath)) {
-      try {
-        const files = await fs.readdir(categoryPath)
-        const componentNames = files
-          .filter(file => file.endsWith('.tsx') || file.endsWith('.ts'))
-          .map(file => path.basename(file, path.extname(file)))
-          .filter(name => name !== 'index' && !name.startsWith('_'))
-        
-        if (componentNames.length > 0) {
-          componentsByCategory[category] = componentNames
-        }
-      } catch (error) {
-        console.warn(`Warning: Could not read ${categoryPath}:`, (error as Error).message)
-      }
-    }
-  }
-  
-  // Also check lib directory (at root level)
-  const libPath = path.join(process.cwd(), "lib")
-  if (await fs.pathExists(libPath)) {
-    try {
-      const files = await fs.readdir(libPath)
-      const libComponents = files
-        .filter(file => file.endsWith('.tsx') || file.endsWith('.ts'))
-        .map(file => path.basename(file, path.extname(file)))
-        .filter(name => name !== 'index' && !name.startsWith('_'))
-      
-      if (libComponents.length > 0) {
-        componentsByCategory['lib'] = libComponents
-      }
-    } catch (error) {
-      console.warn(`Warning: Could not read ${libPath}:`, (error as Error).message)
-    }
-  }
-  
-  return componentsByCategory
+  // Deprecated in core/form model. No categorized utility prerequisites.
+  return {}
 }
 
 /**
@@ -89,7 +50,46 @@ export async function validateComponentInstallation(
   components: string[], 
   registryType: string
 ): Promise<ValidationResult> {
-  // Validation no longer enforces base utility presence.
+  const packageJsonPath = path.join(process.cwd(), "package.json")
+  if (!(await fs.pathExists(packageJsonPath))) {
+    return {
+      isValid: false,
+      message: "No package.json found in the current directory. Run this command from your project root."
+    }
+  }
+
+  const nodeMajorVersion = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10)
+  if (Number.isNaN(nodeMajorVersion) || nodeMajorVersion < 18) {
+    return {
+      isValid: false,
+      message: `Node.js 18+ is required. Current version: ${process.versions.node}`
+    }
+  }
+
+  const existingConfig = await findConfig(registryType)
+  if (!existingConfig) {
+    const { runInit } = await prompts({
+      type: "confirm",
+      name: "runInit",
+      message: "ui8kit.config.json not found. Run init now?",
+      initial: true
+    })
+
+    if (runInit) {
+      await initCommand({ registry: registryType })
+
+      const configAfterInit = await findConfig(registryType)
+      if (configAfterInit) {
+        return { isValid: true }
+      }
+    }
+
+    return {
+      isValid: false,
+      message: `ui8kit is not initialized. Run: npx ui8kit@latest init --registry ${registryType}`
+    }
+  }
+
   return { isValid: true }
 }
 

@@ -98,13 +98,23 @@ async function getRegistryIndex(registryType: RegistryType): Promise<any> {
  * Find component by type from index, then fetch directly from correct folder
  * This eliminates blind searching through all categories (ui, blocks, components, lib, templates)
  */
-async function getComponentByType(name: string, registryType: RegistryType): Promise<Component | null> {
+async function getComponentByType(
+  name: string,
+  registryType: RegistryType,
+  excludeTypes: string[] = []
+): Promise<Component | null> {
   try {
     // 1. Get index to find component metadata
     const index = await getRegistryIndex(registryType)
     
     // 2. Find component in index
-    const componentInfo = index.components?.find((c: any) => c.name === name)
+    const normalizedName = name.toLowerCase()
+    const componentInfo = index.components?.find(
+      (c: any) =>
+        typeof c?.name === "string" &&
+        c.name.toLowerCase() === normalizedName &&
+        !excludeTypes.includes(c.type)
+    )
     if (!componentInfo) {
       console.log(`❌ Component ${name} not found in ${registryType} registry`)
       return null
@@ -131,7 +141,11 @@ async function getComponentByType(name: string, registryType: RegistryType): Pro
   }
 }
 
-export async function getComponent(name: string, registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType): Promise<Component | null> {
+export async function getComponent(
+  name: string,
+  registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
+  excludeTypes: string[] = []
+): Promise<Component | null> {
   try {
     if (isUrl(name)) {
       // If this is a URL - load directly
@@ -139,7 +153,7 @@ export async function getComponent(name: string, registryType: RegistryType = SC
     }
     
     // Use optimized type-based lookup instead of category searching
-    return await getComponentByType(name, registryType)
+    return await getComponentByType(name, registryType, excludeTypes)
     
   } catch (error) {
     console.error(`❌ Failed to fetch ${name} from ${registryType}:`, (error as Error).message)
@@ -160,7 +174,10 @@ async function fetchFromUrl(url: string): Promise<Component | null> {
   return componentSchema.parse(data)
 }
 
-export async function getAllComponents(registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType): Promise<Component[]> {
+export async function getAllComponents(
+  registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
+  excludeTypes: string[] = []
+): Promise<Component[]> {
   try {
     console.log(`🌐 Fetching all ${registryType} components using optimized approach`)
     
@@ -171,7 +188,10 @@ export async function getAllComponents(registryType: RegistryType = SCHEMA_CONFI
     // Get all components from the index
     if (indexData.components && Array.isArray(indexData.components)) {
       for (const componentInfo of indexData.components) {
-        const component = await getComponent(componentInfo.name, registryType)
+        if (excludeTypes.includes(componentInfo.type)) {
+          continue
+        }
+        const component = await getComponent(componentInfo.name, registryType, excludeTypes)
         if (component) {
           components.push(component)
         }
@@ -186,11 +206,15 @@ export async function getAllComponents(registryType: RegistryType = SCHEMA_CONFI
   }
 }
 
-export async function getComponents(names: string[], registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType): Promise<Component[]> {
+export async function getComponents(
+  names: string[],
+  registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
+  excludeTypes: string[] = []
+): Promise<Component[]> {
   const components: Component[] = []
   
   for (const name of names) {
-    const component = await getComponent(name, registryType)
+    const component = await getComponent(name, registryType, excludeTypes)
     if (component) {
       components.push(component)
     }

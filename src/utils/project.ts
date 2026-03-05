@@ -38,21 +38,24 @@ export async function hasReact(): Promise<boolean> {
 }
 
 /**
- * Find configuration for the project (prefer ./src)
+ * Find configuration for the project (prefer project root)
  */
-export async function findConfig(_registryType?: string): Promise<Config | null> {
-  // Prefer config inside ./src
+export async function findConfig(registryType?: string): Promise<Config | null> {
+  // Prefer project root config
+  const rootConfig = await getConfig()
+  if (rootConfig) return rootConfig
+
+  // Backward compatibility: config inside ./src
   const srcConfig = await getConfig("./src")
   if (srcConfig) return srcConfig
 
-  // Backward compatibility: ./ui or legacy registry folders
-  if (_registryType) {
-    const registryConfig = await getConfig(`./${_registryType}`)
+  // Legacy fallback: ./<registryType>/ui8kit.config.json
+  if (registryType) {
+    const registryConfig = await getConfig(`./${registryType}`)
     if (registryConfig) return registryConfig
   }
 
-  // Fallback to project root
-  return await getConfig()
+  return null
 }
 
 export async function getConfig(registryPath?: string): Promise<Config | null> {
@@ -71,10 +74,8 @@ export async function getConfig(registryPath?: string): Promise<Config | null> {
   }
 }
 
-export async function saveConfig(config: Config, registryPath?: string): Promise<void> {
-  const configPath = registryPath
-    ? path.join(process.cwd(), registryPath, MODERN_CONFIG_NAME)
-    : path.join(process.cwd(), MODERN_CONFIG_NAME)
+export async function saveConfig(config: Config): Promise<void> {
+  const configPath = path.join(process.cwd(), MODERN_CONFIG_NAME)
   
   // Ensure directory exists
   await fs.ensureDir(path.dirname(configPath))

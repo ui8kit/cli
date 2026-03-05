@@ -2,7 +2,6 @@ import chalk from "chalk"
 import ora from "ora"
 import path from "path"
 import fs from "fs-extra"
-import { execa } from "execa"
 import fetch from "node-fetch"
 import { getComponent, getAllComponents } from "../registry/api.js"
 import { getComponentWithRetry, getAllComponentsWithRetry } from "../registry/retry-api.js"
@@ -10,8 +9,9 @@ import { findConfig } from "../utils/project.js"
 import { Component, type Config } from "../registry/schema.js"
 import { SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
 import { validateComponentInstallation, handleValidationError } from "../utils/registry-validator.js"
-import { checkProjectDependencies, showDependencyStatus, filterMissingDependencies, isWorkspaceError } from "../utils/dependency-checker.js"
+import { checkProjectDependencies, showDependencyStatus } from "../utils/dependency-checker.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
+import { installDependencies } from "../utils/package-manager.js"
 
 interface AddOptions {
   force?: boolean
@@ -20,6 +20,8 @@ interface AddOptions {
   retry?: boolean
   registry?: string
 }
+
+const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
 
 export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
@@ -47,7 +49,11 @@ export async function addCommand(components: string[], options: AddOptions) {
     process.exit(1)
   }
   
-  const getComponentFn = options.retry ? getComponentWithRetry : getComponent
+  const getComponentFn = options.retry
+    ? (name: string, type: RegistryType) =>
+        getComponentWithRetry(name, type, ADD_EXCLUDED_COMPONENT_TYPES)
+    : (name: string, type: RegistryType) =>
+        getComponent(name, type, ADD_EXCLUDED_COMPONENT_TYPES)
   
   if (options.retry) {
     console.log(chalk.blue(`🔄 ${CLI_MESSAGES.info.retryEnabled}`))
@@ -63,6 +69,11 @@ export async function addCommand(components: string[], options: AddOptions) {
 async function addAllComponents(options: AddOptions, registryType: RegistryType) {
   console.log(chalk.blue(`🚀 ${CLI_MESSAGES.info.installingAll(registryType)}`))
 
+  const validation = await validateComponentInstallation([], registryType)
+  if (!validation.isValid) {
+    handleValidationError(validation)
+  }
+
   const config = await findConfig(registryType)
   if (!config) {
     console.error(chalk.red(`❌ ${CLI_MESSAGES.errors.notInitialized}`))
@@ -71,7 +82,9 @@ async function addAllComponents(options: AddOptions, registryType: RegistryType)
     process.exit(1)
   }
   
-  const getAllComponentsFn = options.retry ? getAllComponentsWithRetry : getAllComponents
+  const getAllComponentsFn = options.retry
+    ? (type: RegistryType) => getAllComponentsWithRetry(type, ADD_EXCLUDED_COMPONENT_TYPES)
+    : (type: RegistryType) => getAllComponents(type, ADD_EXCLUDED_COMPONENT_TYPES)
   
   if (options.retry) {
     console.log(chalk.blue(`🔄 ${CLI_MESSAGES.info.retryEnabled}`))
@@ -139,7 +152,7 @@ async function processComponents(
     const spinner = ora(CLI_MESSAGES.status.installing(componentName, registryType)).start()
     
     try {
-      let component = componentMap?.get(componentName)
+      let component: Component | null = componentMap?.get(componentName) ?? null
       
       if (!component) {
         component = await getComponentFn(componentName, registryType)
@@ -308,113 +321,6 @@ function resolveRegistryType(registryInput?: string): RegistryType {
   console.log(`Using default: ${SCHEMA_CONFIG.defaultRegistryType}`)
   
   return SCHEMA_CONFIG.defaultRegistryType
-}
-
-async function installDependencies(dependencies: string[]): Promise<void> {
-  const spinner = ora(CLI_MESSAGES.status.installing("dependencies", "")).start()
-  
-  try {
-    const depStatus = await checkProjectDependencies(dependencies)
-    const missingDependencies = await filterMissingDependencies(dependencies)
-    
-    if (missingDependencies.length === 0) {
-      spinner.succeed(CLI_MESSAGES.success.depsAvailable)
-      if (depStatus.workspace.length > 0) {
-        console.log(chalk.blue(`   🔗 Using workspace dependencies: ${depStatus.workspace.join(", ")}`))
-      }
-      return
-    }
-    
-    showDependencyStatus(depStatus)
-    
-    const packageManager = await detectPackageManager()
-    
-    const installCommand = packageManager === "npm" 
-      ? ["install", ...missingDependencies]
-      : ["add", ...missingDependencies]
-    
-    await execa(packageManager, installCommand, {
-      cwd: process.cwd(),
-      stdio: "pipe"
-    })
-    
-    spinner.succeed(CLI_MESSAGES.success.depsInstalled)
-  } catch (error) {
-    spinner.fail(CLI_MESSAGES.errors.dependenciesFailed)
-    
-    const errorMessage = (error as any).stderr || (error as Error).message
-    
-    if (isWorkspaceError(errorMessage)) {
-      console.log(chalk.yellow(`\n💡 ${CLI_MESSAGES.info.workspaceDepsDetected}`))
-      
-      const results = await installDependenciesIndividually(dependencies)
-      
-      if (results.some(r => r.success)) {
-        console.log(chalk.green("✅ Some dependencies installed successfully"))
-        return
-      }
-    }
-    
-    throw new Error(`${CLI_MESSAGES.errors.dependenciesFailed}: ${errorMessage}`)
-  }
-}
-
-async function installDependenciesIndividually(dependencies: string[]): Promise<Array<{dep: string, success: boolean}>> {
-  const packageManager = await detectPackageManager()
-  const results: Array<{dep: string, success: boolean}> = []
-  
-  const missingDeps = await filterMissingDependencies(dependencies)
-  
-  for (const dep of missingDeps) {
-    try {
-      const installCommand = packageManager === "npm" 
-        ? ["install", dep]
-        : ["add", dep]
-      
-      await execa(packageManager, installCommand, {
-        cwd: process.cwd(),
-        stdio: "pipe"
-      })
-      
-      console.log(chalk.green(`   ✅ Installed ${dep}`))
-      results.push({dep, success: true})
-    } catch (error) {
-      console.log(chalk.yellow(`   ⚠️  Skipped ${dep} (may already be available)`))
-      results.push({dep, success: false})
-    }
-  }
-  
-  return results
-}
-
-async function detectPackageManager(): Promise<string> {
-  let dir = process.cwd()
-  while (true) {
-    if (await fs.pathExists(path.join(dir, "bun.lock")) || await fs.pathExists(path.join(dir, "bun.lockb"))) {
-      return "bun"
-    }
-    if (await fs.pathExists(path.join(dir, "pnpm-lock.yaml"))) return "pnpm"
-    if (await fs.pathExists(path.join(dir, "yarn.lock"))) return "yarn"
-
-    const packageJsonPath = path.join(dir, "package.json")
-    if (await fs.pathExists(packageJsonPath)) {
-      try {
-        const packageJson = await fs.readJson(packageJsonPath)
-        const packageManager = String(packageJson.packageManager ?? "")
-        if (packageManager.startsWith("bun@")) return "bun"
-        if (packageManager.startsWith("pnpm@")) return "pnpm"
-        if (packageManager.startsWith("yarn@")) return "yarn"
-        if (packageManager.startsWith("npm@")) return "npm"
-      } catch {
-        // ignore broken package json and continue searching parents
-      }
-    }
-
-    const parent = path.dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
-  return "npm"
 }
 
 async function installComponentsIndex(registryType: RegistryType, config: Config): Promise<void> {
