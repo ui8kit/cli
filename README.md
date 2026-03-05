@@ -58,6 +58,7 @@ bunx ui8kit@latest add --all --retry
 
 Calling `add` without component arguments opens an interactive multiselect list grouped by component type.
 Resolved registry dependencies are installed in dependency order automatically.
+`add` now prints progress counters for multi-component installs in the format `[n/total]`.
 `--dry-run` now also shows:
 - full target file paths
 - overwrite/create status for each file
@@ -118,6 +119,14 @@ Manage local registry cache.
 
 ```bash
 bunx ui8kit@latest cache clear
+```
+
+### `info`
+
+Show local environment and configuration diagnostics.
+
+```bash
+bunx ui8kit@latest info
 ```
 
 Use `--no-cache` in any command to skip reading cached registry data.

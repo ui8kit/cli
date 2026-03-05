@@ -164,13 +164,21 @@ async function processComponents(
   config: Config,
   getComponentFn: (name: string, type: RegistryType) => Promise<Component | null>,
   options: AddOptions,
-  preloadedComponents?: Component[]
+  preloadedComponents?: Component[],
+  totalCount?: number
 ): Promise<Array<{ name: string; status: "success" | "error"; error?: string }>> {
   const results: Array<{ name: string; status: "success" | "error"; error?: string }> = []
   const componentMap = new Map(preloadedComponents?.map(c => [c.name.toLowerCase(), c]))
-  
-  for (const componentName of componentNames) {
-    const spinner = ora(CLI_MESSAGES.status.installing(componentName, registryType)).start()
+  const total = totalCount ?? componentNames.length
+
+  if (total > 1) {
+    logger.info(`Installing ${total} components...`)
+  }
+
+  for (let i = 0; i < componentNames.length; i += 1) {
+    const componentName = componentNames[i]
+    const position = `${i + 1}/${total}`
+    const spinner = ora(`[${position}] ${CLI_MESSAGES.status.installing(componentName, registryType)}`).start()
     
     try {
       const lookupName = componentName.toLowerCase()
@@ -185,7 +193,7 @@ async function processComponents(
       }
       
       if (options.dryRun) {
-        spinner.succeed(CLI_MESSAGES.status.wouldInstall(component.name, registryType))
+        spinner.succeed(`[${position}] ${CLI_MESSAGES.status.wouldInstall(component.name, registryType)}`)
         logger.info(`   Type: ${component.type}`)
         if (component.registryDependencies && component.registryDependencies.length > 0) {
           logger.info(`   Registry deps: ${component.registryDependencies.join(" -> ")}`)
@@ -234,11 +242,11 @@ async function processComponents(
         }
       }
       
-      spinner.succeed(CLI_MESSAGES.status.installing(component.name, registryType))
+      spinner.succeed(`[${position}] ${CLI_MESSAGES.status.installing(component.name, registryType)}`)
       results.push({ name: component.name, status: "success" })
       
     } catch (error) {
-      spinner.fail(CLI_MESSAGES.errors.failedToInstall(componentName, registryType))
+      spinner.fail(`[${position}] ${CLI_MESSAGES.errors.failedToInstall(componentName, registryType)}`)
       logger.error(`   Error: ${(error as Error).message}`)
       results.push({ 
         name: componentName, 
@@ -369,7 +377,8 @@ async function installRequestedComponents(
     config,
     resolverGetComponent,
     options,
-    orderedComponents
+    orderedComponents,
+    orderedComponents.length
   )
   return [...missingResults, ...processingResults]
 }
@@ -421,7 +430,7 @@ async function installComponentFiles(
   }
 }
 
-function inferTargetFromType(componentType: string): string {
+export function inferTargetFromType(componentType: string): string {
   switch (componentType) {
     case "registry:ui":
       return "ui"
@@ -442,7 +451,7 @@ function inferTargetFromType(componentType: string): string {
   }
 }
 
-function resolveInstallDir(target: string, config: Config): string {
+export function resolveInstallDir(target: string, config: Config): string {
   const normalizedTarget = target.replace(/\\/g, "/").replace(/^\/?src\//i, "")
 
   // lib has own root at src/lib

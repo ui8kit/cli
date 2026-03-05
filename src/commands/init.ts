@@ -17,6 +17,44 @@ interface InitOptions {
   registry?: string
 }
 
+export interface InitConfigOptions {
+  yes?: boolean
+  registry?: string
+  globalCss?: string
+  aliasComponents?: string
+}
+
+export function buildInitConfig(options: InitConfigOptions): Config {
+  const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
+  const aliases = SCHEMA_CONFIG.defaultAliases
+  const globalCss = options.globalCss || "src/index.css"
+  const aliasComponents = options.aliasComponents?.trim() || "@/components"
+
+  if (options.yes) {
+    return {
+      $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
+      framework: "vite-react",
+      typescript: true,
+      globalCss,
+      aliases,
+      registry: SCHEMA_CONFIG.defaultRegistry,
+      componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
+      libDir: SCHEMA_CONFIG.defaultDirectories.lib,
+    }
+  }
+
+  return {
+    $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
+    framework: "vite-react",
+    typescript: true,
+    globalCss,
+    aliases: { ...aliases, "@/components": aliasComponents },
+    registry: SCHEMA_CONFIG.defaultRegistry,
+    componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
+    libDir: SCHEMA_CONFIG.defaultDirectories.lib,
+  }
+}
+
 export async function initCommand(options: InitOptions) {
   const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
   
@@ -53,21 +91,10 @@ export async function initCommand(options: InitOptions) {
     }
   }
 
-  const aliases = SCHEMA_CONFIG.defaultAliases
-
   let config: Config
   
   if (options.yes) {
-    config = {
-      $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
-      framework: "vite-react",
-      typescript: true,
-      globalCss: "src/index.css",
-      aliases,
-      registry: SCHEMA_CONFIG.defaultRegistry,
-      componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
-      libDir: SCHEMA_CONFIG.defaultDirectories.lib,
-    }
+    config = buildInitConfig({ yes: true, registry: registryName })
   } else {
     const responses = await prompts([
       {
@@ -86,17 +113,12 @@ export async function initCommand(options: InitOptions) {
 
     const aliasComponents = responses.aliasComponents?.trim() || "@/components"
     const globalCss = responses.globalCss || "src/index.css"
-    const configuredAliases = { ...aliases, "@/components": aliasComponents }
-    config = {
-      $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
-      framework: "vite-react",
-      typescript: true,
+    config = buildInitConfig({
+      yes: false,
+      registry: registryName,
       globalCss,
-      aliases: configuredAliases,
-      registry: SCHEMA_CONFIG.defaultRegistry,
-      componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
-      libDir: SCHEMA_CONFIG.defaultDirectories.lib,
-    }
+      aliasComponents
+    })
   }
   
   const spinner = ora(CLI_MESSAGES.info.initializing(registryName)).start()

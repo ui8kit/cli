@@ -1,0 +1,127 @@
+import fs from "fs-extra"
+import os from "os"
+import path from "path"
+import fetch from "node-fetch"
+import chalk from "chalk"
+import { SCHEMA_CONFIG } from "../utils/schema-config.js"
+import { detectPackageManager } from "../utils/package-manager.js"
+import { getCliVersion } from "../utils/cli-version.js"
+import { getCacheDir } from "../utils/cache.js"
+
+export async function infoCommand() {
+  const version = getCliVersion()
+  const pm = await detectPackageManager()
+  const cwd = process.cwd()
+
+  const configStatus = await readConfigStatus()
+  const cache = await readCacheStatus()
+  const cdn = await checkPrimaryCdn()
+
+  console.log(`ui8kit v${version}`)
+  console.log(`Node    ${process.version}`)
+  console.log(`OS      ${os.platform()} ${os.arch()}`)
+  console.log(`PM      ${pm}`)
+  console.log(`CWD     ${cwd}`)
+  console.log("")
+  if (configStatus.found) {
+    console.log(chalk.green(`Config  ${configStatus.path} (found)`))
+    const config = configStatus.config
+    console.log(`  framework    ${config.framework}`)
+    console.log(`  typescript   ${config.typescript}`)
+    console.log(`  globalCss    ${config.globalCss}`)
+    console.log(`  componentsDir ${config.componentsDir}`)
+    console.log(`  libDir       ${config.libDir}`)
+  } else {
+    console.log(chalk.yellow("Config  not found"))
+  }
+  console.log("")
+
+  console.log(`Registry  ${SCHEMA_CONFIG.defaultRegistry}`)
+  console.log(`CDN       ${cdn.url} (${cdn.ok ? "ok" : "failed"})`)
+  console.log(`Cache     ${cache.path} (${cache.items} items, ${cache.mb} MB)`)
+}
+
+async function readConfigStatus():
+  Promise<{ found: boolean; path: string | null; config: any }>{
+  const candidatePaths = [
+    path.join(process.cwd(), "ui8kit.config.json"),
+    path.join(process.cwd(), "src", "ui8kit.config.json"),
+    path.join(process.cwd(), SCHEMA_CONFIG.defaultRegistryType, "ui8kit.config.json"),
+  ]
+
+  for (const configPath of candidatePaths) {
+    if (await fs.pathExists(configPath)) {
+      try {
+        const config = await fs.readJson(configPath)
+        return {
+          found: true,
+          path: `./${path.relative(process.cwd(), configPath).replace(/\\/g, "/")}`,
+          config: {
+            framework: config.framework ?? "unknown",
+            typescript: config.typescript ?? false,
+            globalCss: config.globalCss ?? "src/index.css",
+            componentsDir: config.componentsDir ?? SCHEMA_CONFIG.defaultDirectories.components,
+            libDir: config.libDir ?? SCHEMA_CONFIG.defaultDirectories.lib
+          }
+        }
+      } catch {
+        continue
+      }
+    }
+  }
+
+  return {
+    found: false,
+    path: null,
+    config: null
+  }
+}
+
+async function readCacheStatus(): Promise<{ path: string; items: number; mb: string }> {
+  const cachePath = getCacheDir()
+  let items = 0
+  let bytes = 0
+  if (await fs.pathExists(cachePath)) {
+    const result = await countCacheFiles(cachePath)
+    items = result.count
+    bytes = result.bytes
+  }
+  return {
+    path: cachePath.replace(/\\/g, "/"),
+    items,
+    mb: `${(bytes / (1024 * 1024)).toFixed(1)}`
+  }
+}
+
+async function countCacheFiles(dirPath: string): Promise<{ count: number; bytes: number }> {
+  let count = 0
+  let size = 0
+  const entries = await fs.readdir(dirPath, { withFileTypes: true })
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name)
+    if (entry.isDirectory()) {
+      const nested = await countCacheFiles(fullPath)
+      count += nested.count
+      size += nested.bytes
+      continue
+    }
+
+    count += 1
+    const stat = await fs.stat(fullPath)
+    size += stat.size
+  }
+  return { count, bytes: size }
+}
+
+async function checkPrimaryCdn(): Promise<{ url: string; ok: boolean }> {
+  const url = SCHEMA_CONFIG.cdnBaseUrls[0]
+  try {
+    const response = await fetch(`${url}/index.json`, { method: "HEAD" })
+    if (response.status >= 200 && response.status < 400) {
+      return { url, ok: true }
+    }
+  } catch {
+    // Intentionally ignore.
+  }
+  return { url, ok: false }
+}

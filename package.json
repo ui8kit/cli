@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "A CLI for adding UI components to your Vite React projects (UI8Kit core/blocks registries)",
   "type": "module",
   "bin": {
@@ -16,7 +16,9 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "chalk": "^5.3.0",
@@ -34,9 +36,11 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
+    "@types/diff": "^5.2.2",
     "@types/node": "^20.8.0",
     "@types/prompts": "^2.4.9",
-    "tsup": "^7.2.0"
+    "tsup": "^7.2.0",
+    "vitest": "^4.0.0"
   },
   "keywords": [
     "cli",

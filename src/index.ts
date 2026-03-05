@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 
-import { readFileSync } from "node:fs"
-import { dirname, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
 import { Command } from "commander"
 import chalk from "chalk"
 import { addCommand } from "./commands/add.js"
@@ -12,19 +9,10 @@ import { scanCommand } from "./commands/scan.js"
 import { listCommand } from "./commands/list.js"
 import { diffCommand } from "./commands/diff.js"
 import { cacheClearCommand } from "./commands/cache.js"
+import { infoCommand } from "./commands/info.js"
 import { logger } from "./utils/logger.js"
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const pkgPath = resolve(__dirname, "../package.json")
-
-function getCliVersion(): string {
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf-8")) as { version?: string }
-    return pkg.version ?? "0.0.0"
-  } catch {
-    return "0.0.0"
-  }
-}
+import { getCliVersion } from "./utils/cli-version.js"
+import { resolve } from "node:path"
 
 const program = new Command()
 
@@ -57,6 +45,11 @@ program
   .command("clear")
   .description("Clear registry cache")
   .action(cacheClearCommand)
+
+program
+  .command("info")
+  .description("Show environment and config diagnostics")
+  .action(infoCommand)
 
 program
   .command("init")

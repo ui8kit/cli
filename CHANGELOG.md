@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.2.2] - 2026-03-05
+
+### Added
+- `info` command for environment diagnostics (`ui8kit info`) including CLI version, runtime, config status, CDN and cache health.
+- Progressive multi-component install feedback in `add` (`[n/total]` progress markers).
+- Initial Vitest test suite scaffold in `tests/` for cache, transform, diff, dependency resolver, package manager, errors, logger, project, add, and init.
+
+### Changed
+- Extracted CLI version helper to `src/utils/cli-version.ts`.
+- Added `vitest`/`@types/diff` tooling and `test` scripts.
+- `add` dry-run output now consistently displays file-level context with progress position.
+
+### Fixed
+- `info` command coverage enables easier support troubleshooting.
+- Added deterministic project setup checks in tests for `buildInitConfig` and `findConfig`.
+
 ## [1.2.1] - 2026-03-05
 
 ### Added
