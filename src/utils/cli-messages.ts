@@ -20,6 +20,9 @@ export const CLI_MESSAGES = {
     failedToAnalyzeDeps: (path: string) => `Warning: Could not analyze dependencies for ${path}:`,
     dependenciesFailed: "Failed to install dependencies",
     couldNotInstallDeps: (name: string) => `Warning: Could not install some dependencies for ${name}`,
+    noLocalInstall: "No installed local components were found in this project.",
+    invalidRegistryForDiff: "Could not load registry data for diff check.",
+    cacheClearFailed: "Could not clear cache."
   },
 
   // Success messages
@@ -34,6 +37,7 @@ export const CLI_MESSAGES = {
     schemasGenerated: "Schema files generated successfully!",
     registryGenerated: (registryName: string) => `${registryName} registry generated successfully!`,
     depsAvailable: "All dependencies already available",
+    cacheCleared: "UI8Kit cache cleared successfully."
   },
 
   // Info messages
@@ -58,8 +62,11 @@ export const CLI_MESSAGES = {
     loading: (name: string, registryType: string, folder: string, type: string) => 
       `Loading ${name} from /${registryType}/${folder}/ (type: ${type})`,
     fetching: (registryType: string, url: string) => `Fetching from ${registryType}: ${url}`,
+    listingComponents: "Listing available components",
     fetchingUrl: "Fetching component from:",
     fetchingUrlWithRetry: "Fetching component from URL with retry:",
+    checkingForUpdates: "Checking for component updates...",
+    localDiffSummary: "Local components compared with registry.",
   },
 
   // Prompts

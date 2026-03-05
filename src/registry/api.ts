@@ -2,6 +2,9 @@ import fetch from "node-fetch"
 import { Component, componentSchema } from "./schema.js"
 import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType } from "../utils/schema-config.js"
 import { logger } from "../utils/logger.js"
+import { getCachedJson, setCachedJson } from "../utils/cache.js"
+
+const REGISTRY_INDEX_CACHE_TTL_MS = 3_600_000
 
 const registryCache = new Map<RegistryType, {
   workingCDN: string | null
@@ -16,6 +19,7 @@ export interface RegistryFetchOptions {
   excludeTypes?: string[]
   maxRetries?: number
   timeoutMs?: number
+  noCache?: boolean
 }
 
 export function isUrl(path: string): boolean {
@@ -107,12 +111,27 @@ async function fetchFromRegistryPath(
 }
 
 async function getRegistryIndex(registryType: RegistryType, options: RegistryFetchOptions = {}): Promise<any> {
-  const cache = getRegistryCache(registryType)
-  if (cache.registryIndex) {
-    return cache.registryIndex
+  if (cacheStateHasIndex(registryType, options)) {
+    return getCachedInMemory(registryType)
   }
 
+  const cached = await getCachedJson(
+    `${registryType}/index.json`,
+    { noCache: options.noCache, ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
+  )
+  if (cached) {
+    setCachedInMemory(registryType, cached)
+    return cached
+  }
+
+  const cache = getRegistryCache(registryType)
+
   cache.registryIndex = await fetchFromRegistryPath("index.json", registryType, options)
+  await setCachedJson(
+    `${registryType}/index.json`,
+    cache.registryIndex,
+    { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
+  )
   return cache.registryIndex
 }
 
@@ -121,10 +140,22 @@ async function getComponentByType(
   registryType: RegistryType,
   options: RegistryFetchOptions = {}
 ): Promise<Component | null> {
+  const normalizedName = name.toLowerCase()
+  const cachedComponent = await getCachedJson(
+    `${registryType}/components/${normalizedName}.json`,
+    { noCache: options.noCache, ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
+  )
+  if (cachedComponent) {
+    try {
+      return componentSchema.parse(cachedComponent)
+    } catch (error) {
+      logger.debug(`Invalid cached component for ${name}, refetching`)
+    }
+  }
+
   try {
     const index = await getRegistryIndex(registryType, options)
     const excludeTypes = options.excludeTypes ?? []
-    const normalizedName = name.toLowerCase()
     const componentInfo = index.components?.find(
       (c: any) =>
         typeof c?.name === "string" &&
@@ -147,6 +178,7 @@ async function getComponentByType(
 
     logger.debug(`Loading ${name} from /${folder}/ (type: ${componentInfo.type})`)
     const data = await fetchFromRegistryPath(`${folder}/${name}.json`, registryType, options)
+    await setCachedJson(`${registryType}/components/${normalizedName}.json`, data, { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS })
     return componentSchema.parse(data)
   } catch (error) {
     logger.debug(`Failed to get component by type: ${(error as Error).message}`)
@@ -206,6 +238,23 @@ export async function getAllComponents(
     logger.debug(`Failed to fetch all ${registryType} components: ${(error as Error).message}`)
     return []
   }
+}
+
+function cacheStateHasIndex(registryType: RegistryType, options: RegistryFetchOptions): boolean {
+  if (options.noCache) {
+    return false
+  }
+  const cache = getRegistryCache(registryType)
+  return Boolean(cache.registryIndex)
+}
+
+function getCachedInMemory(registryType: RegistryType) {
+  return getRegistryCache(registryType).registryIndex
+}
+
+function setCachedInMemory(registryType: RegistryType, index: any) {
+  const cache = getRegistryCache(registryType)
+  cache.registryIndex = index
 }
 
 export async function getComponents(

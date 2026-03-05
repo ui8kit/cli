@@ -9,6 +9,9 @@ import { addCommand } from "./commands/add.js"
 import { initCommand } from "./commands/init.js"
 import { buildCommand } from "./commands/build.js"
 import { scanCommand } from "./commands/scan.js"
+import { listCommand } from "./commands/list.js"
+import { diffCommand } from "./commands/diff.js"
+import { cacheClearCommand } from "./commands/cache.js"
 import { logger } from "./utils/logger.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -28,9 +31,32 @@ const program = new Command()
 program
   .option("-c, --cwd <dir>", "Working directory", process.cwd())
   .option("-v, --verbose", "Enable verbose output")
+  .option("--no-cache", "Bypass registry cache")
   .name("ui8kit")
   .description("A CLI for adding UI components to your Vite React projects (UI8Kit registry)")
   .version(getCliVersion())
+
+program
+  .command("list")
+  .description("List available components in registry")
+  .option("-r, --registry <type>", "Registry type: ui", "ui")
+  .option("--json", "Output raw JSON")
+  .action((options) => listCommand(options))
+
+program
+  .command("diff")
+  .description("Show local vs registry differences")
+  .argument("[component]", "Component name")
+  .option("-r, --registry <type>", "Registry type: ui", "ui")
+  .option("--json", "Output diff in machine-readable JSON")
+  .action((component, options) => diffCommand(component, options))
+
+program
+  .command("cache")
+  .description("Manage local cache")
+  .command("clear")
+  .description("Clear registry cache")
+  .action(cacheClearCommand)
 
 program
   .command("init")

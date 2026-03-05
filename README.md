@@ -58,6 +58,11 @@ bunx ui8kit@latest add --all --retry
 
 Calling `add` without component arguments opens an interactive multiselect list grouped by component type.
 Resolved registry dependencies are installed in dependency order automatically.
+`--dry-run` now also shows:
+- full target file paths
+- overwrite/create status for each file
+- registry dependency tree
+- compact diff preview for files that already exist locally
 
 Options:
 
@@ -66,6 +71,56 @@ Options:
 - `-r, --registry <type>` Registry type (default: `ui`)
 - `--dry-run` Show planned actions without writing files
 - `--retry` Enable retry logic for unstable connections
+- `--no-cache` (root option) bypasses cache for this run.
+
+### `list`
+
+List available components from the registry.
+Grouped by component type and sorted alphabetically.
+
+```bash
+bunx ui8kit@latest list
+bunx ui8kit@latest list --registry ui
+bunx ui8kit@latest list --json
+```
+
+Options:
+
+- `-r, --registry <type>` Registry type (default: `ui`)
+- `--json` Print JSON output instead of table
+
+### `diff`
+
+Show differences between local components and registry versions using unified diff output.
+Useful to check which installed components are outdated.
+
+```bash
+bunx ui8kit@latest diff
+bunx ui8kit@latest diff button
+bunx ui8kit@latest diff --json
+```
+
+Options:
+
+- `[component]` Optional component name
+- `-r, --registry <type>` Registry type (default: `ui`)
+- `--json` Print diff summary as JSON
+
+Examples:
+
+```bash
+bunx ui8kit@latest diff button
+```
+
+### `cache`
+
+Manage local registry cache.
+
+```bash
+bunx ui8kit@latest cache clear
+```
+
+Use `--no-cache` in any command to skip reading cached registry data.
 
 ### `scan`
 
@@ -103,6 +158,7 @@ These options work for all commands and are defined at the CLI root:
 
 - `-c, --cwd <dir>` Working directory for command execution (default: current directory)
 - `-v, --verbose` Enable verbose output including debug logs from registry/CDN operations
+- `--no-cache` Bypass local filesystem cache for registry lookups
 
 ## Typical Flow
 

@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A CLI for adding UI components to your Vite React projects (UI8Kit core/blocks registries)",
   "type": "module",
   "bin": {
@@ -25,6 +25,7 @@
     "fs-extra": "^11.1.1",
     "glob": "^10.3.10",
     "node-fetch": "^3.3.2",
+    "diff": "^7.0.0",
     "ora": "^7.0.1",
     "prompts": "^2.4.2",
     "typescript": "^5.2.2",

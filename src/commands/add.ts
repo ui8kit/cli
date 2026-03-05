@@ -14,6 +14,8 @@ import { installDependencies } from "../utils/package-manager.js"
 import { logger } from "../utils/logger.js"
 import { resolveRegistryTree } from "../utils/dependency-resolver.js"
 import { handleError, ConfigNotFoundError } from "../utils/errors.js"
+import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
+import { applyTransforms, shouldTransformFile } from "../utils/transform.js"
 
 interface AddOptions {
   force?: boolean
@@ -21,6 +23,7 @@ interface AddOptions {
   all?: boolean
   retry?: boolean
   registry?: string
+  cache?: boolean
 }
 
 const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
@@ -29,7 +32,8 @@ export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
   const requestOptions = {
     excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
-    maxRetries: options.retry ? 3 : 1
+    maxRetries: options.retry ? 3 : 1,
+    noCache: options.cache === false
   }
 
   try {
@@ -119,10 +123,14 @@ async function addAllComponents(
     spinner.succeed(CLI_MESSAGES.status.foundComponents(allComponents.length, registryType))
     
     if (options.dryRun) {
-      logger.info(`\n📋 ${CLI_MESSAGES.status.wouldInstallFrom(registryType)}`)
-      allComponents.forEach(comp => {
-        console.log(`   - ${comp.name} (${comp.type})`)
-      })
+      await installRequestedComponents(
+        allComponents.map(c => c.name),
+        registryType,
+        config,
+        (name: string, type: RegistryType) => getComponent(name, type, requestOptions),
+        options,
+        allComponents
+      )
       return
     }
     
@@ -178,13 +186,35 @@ async function processComponents(
       
       if (options.dryRun) {
         spinner.succeed(CLI_MESSAGES.status.wouldInstall(component.name, registryType))
-        console.log(`   Type: ${component.type}`)
-        console.log(`   Files: ${component.files.length}`)
-        console.log(`   Dependencies: ${component.dependencies.join(", ") || "none"}`)
+        logger.info(`   Type: ${component.type}`)
         if (component.registryDependencies && component.registryDependencies.length > 0) {
-          console.log(`   Registry Dependencies: ${component.registryDependencies.join(", ")}`)
+          logger.info(`   Registry deps: ${component.registryDependencies.join(" -> ")}`)
         }
+        logger.info(`   Files: ${component.files.length}`)
+        logger.info(`   Dependencies: ${component.dependencies.join(", ") || "none"}`)
         
+        for (const file of component.files) {
+          const fileName = path.basename(file.path)
+          const target = file.target || inferTargetFromType(component.type)
+          const installDir = resolveInstallDir(target, config)
+          const targetPath = path.join(process.cwd(), installDir, fileName)
+          const exists = await fs.pathExists(targetPath)
+          const status = exists ? "overwrite" : "create"
+          logger.info(`   ${status}: ${targetPath}`)
+          
+          if (exists) {
+            const currentContent = await fs.readFile(targetPath, "utf-8")
+            const transformedIncoming = shouldTransformFile(fileName)
+              ? applyTransforms(file.content, config.aliases)
+              : file.content
+            const changed = hasDiff(currentContent, transformedIncoming)
+            if (changed) {
+              const patch = buildUnifiedDiff(targetPath, `${component.name}/${fileName}`, currentContent, transformedIncoming)
+              console.log(formatDiffPreview(patch, 40))
+            }
+          }
+        }
+
         if (component.dependencies.length > 0) {
           const depStatus = await checkProjectDependencies(component.dependencies)
           showDependencyStatus(depStatus)
@@ -316,6 +346,13 @@ async function installRequestedComponents(
   const orderedComponents = await resolveRegistryTree(componentNames, registryType, (name, type) =>
     resolverGetComponent(name, type)
   )
+  if (options.dryRun && orderedComponents.length > 0) {
+    logger.info("\n📦 Resolved registry dependency tree:")
+    orderedComponents.forEach((component, index) => {
+      console.log(`   ${index + 1}. ${component.name}`)
+    })
+  }
+
   const orderedNames = new Set(orderedComponents.map(component => component.name.toLowerCase()))
   const normalizedRequested = Array.from(new Set(componentNames.map(name => name.toLowerCase())))
   const missingRequested = normalizedRequested.filter(name => !orderedNames.has(name))
@@ -377,7 +414,10 @@ async function installComponentFiles(
     }
 
     await fs.ensureDir(path.dirname(targetPath))
-    await fs.writeFile(targetPath, file.content, "utf-8")
+    const preparedContent = shouldTransformFile(fileName)
+      ? applyTransforms(file.content, config.aliases)
+      : file.content
+    await fs.writeFile(targetPath, preparedContent, "utf-8")
   }
 }
 
