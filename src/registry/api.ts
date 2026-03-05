@@ -1,6 +1,7 @@
 import fetch from "node-fetch"
 import { Component, componentSchema } from "./schema.js"
 import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType } from "../utils/schema-config.js"
+import { logger } from "../utils/logger.js"
 
 const registryCache = new Map<RegistryType, {
   workingCDN: string | null
@@ -131,7 +132,7 @@ async function getComponentByType(
         !excludeTypes.includes(c.type)
     )
     if (!componentInfo) {
-      console.log(`❌ Component ${name} not found in ${registryType} registry`)
+      logger.debug(`Component ${name} not found in ${registryType} registry`)
       return null
     }
 
@@ -140,15 +141,15 @@ async function getComponentByType(
         ? "components/variants"
         : TYPE_TO_FOLDER[componentInfo.type as keyof typeof TYPE_TO_FOLDER]
     if (!folder) {
-      console.log(`❌ Unknown component type: ${componentInfo.type}`)
+      logger.debug(`Unknown component type: ${componentInfo.type}`)
       return null
     }
 
-    console.log(`🎯 Loading ${name} from /${folder}/ (type: ${componentInfo.type})`)
+    logger.debug(`Loading ${name} from /${folder}/ (type: ${componentInfo.type})`)
     const data = await fetchFromRegistryPath(`${folder}/${name}.json`, registryType, options)
     return componentSchema.parse(data)
   } catch (error) {
-    console.log(`❌ Failed to get component by type: ${(error as Error).message}`)
+    logger.debug(`Failed to get component by type: ${(error as Error).message}`)
     return null
   }
 }
@@ -165,7 +166,7 @@ export async function getComponent(
 
     return await getComponentByType(name, registryType, options)
   } catch (error) {
-    console.error(`❌ Failed to fetch ${name} from ${registryType}:`, (error as Error).message)
+    logger.debug(`Failed to fetch ${name} from ${registryType}: ${(error as Error).message}`)
     return null
   }
 }
@@ -173,7 +174,7 @@ export async function getComponent(
 async function fetchFromUrl(url: string, options: RegistryFetchOptions = {}): Promise<Component | null> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxRetries = Math.max(1, options.maxRetries ?? DEFAULT_MAX_RETRIES)
-  console.log(`🌐 Fetching component from: ${url}`)
+  logger.debug(`Fetching component from: ${url}`)
 
   const data = await fetchJsonWithRetry(url, maxRetries, timeoutMs)
   return componentSchema.parse(data)
@@ -184,7 +185,7 @@ export async function getAllComponents(
   options: RegistryFetchOptions = {}
 ): Promise<Component[]> {
   try {
-    console.log(`🌐 Fetching all ${registryType} components using optimized approach`)
+    logger.debug(`Fetching all ${registryType} components using optimized approach`)
     const indexData = await getRegistryIndex(registryType, options)
     const components: Component[] = []
     const excludeTypes = options.excludeTypes ?? []
@@ -202,7 +203,7 @@ export async function getAllComponents(
     }
     return components
   } catch (error) {
-    console.error(`❌ Failed to fetch all ${registryType} components:`, (error as Error).message)
+    logger.debug(`Failed to fetch all ${registryType} components: ${(error as Error).message}`)
     return []
   }
 }
@@ -227,9 +228,9 @@ export async function getComponents(
 export function resetCache(registryType?: RegistryType): void {
   if (registryType) {
     registryCache.delete(registryType)
-    console.log(`🔄 Cache reset for ${registryType} - will rediscover working CDN`)
+    logger.debug(`Cache reset for ${registryType} - will rediscover working CDN`)
   } else {
     registryCache.clear()
-    console.log(`🔄 All registry caches reset - will rediscover working CDNs`)
+    logger.debug(`All registry caches reset - will rediscover working CDNs`)
   }
 } 

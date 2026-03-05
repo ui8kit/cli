@@ -4,8 +4,9 @@ import chalk from "chalk"
 import ora from "ora"
 import { registrySchema, registryItemSchema } from "../registry/build-schema.js"
 import { generateConfigSchema, generateRegistrySchema, generateRegistryItemSchema } from "../utils/schema-generator.js"
-import { TYPE_TO_FOLDER, SCHEMA_CONFIG } from "../utils/schema-config.js"
+import { TYPE_TO_FOLDER, SCHEMA_CONFIG, isExternalDependency } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
+import { handleError } from "../utils/errors.js"
 
 interface BuildOptions {
   cwd: string
@@ -32,6 +33,7 @@ export async function buildCommand(
     
     // Validate schema
     const registry = registrySchema.parse(registryData)
+    await ensureVariantsIndexItem(registry, buildOptions.cwd)
     
     // Create output directory
     await fs.ensureDir(buildOptions.outputDir)
@@ -81,8 +83,7 @@ export async function buildCommand(
     console.log(chalk.green(`✅ ${CLI_MESSAGES.success.schemasGenerated}`))
     
   } catch (error) {
-    console.error(chalk.red(`❌ ${CLI_MESSAGES.errors.buildFailed}`), (error as Error).message)
-    process.exit(1)
+    handleError(error)
   }
 }
 
@@ -151,4 +152,76 @@ async function generateSchemaFiles(outputDir: string) {
     path.join(schemaDir, "registry-item.json"),
     JSON.stringify(registryItemSchemaJson, null, 2)
   )
+}
+
+async function ensureVariantsIndexItem(registry: any, cwd: string): Promise<void> {
+  const indexSourcePath = path.join(cwd, "src/variants/index.ts")
+
+  if (!(await fs.pathExists(indexSourcePath))) {
+    return
+  }
+
+  const sourceContent = await fs.readFile(indexSourcePath, "utf-8")
+  const dependencies = extractFileDependencies(sourceContent)
+  const exportedModules = extractExportedModules(sourceContent)
+
+  const indexItem = {
+    name: "index",
+    type: "registry:variants",
+    description: exportedModules.length > 0
+      ? `Variant exports: ${exportedModules.join(", ")}`
+      : "Variants export index",
+    dependencies,
+    devDependencies: [],
+    files: [
+      {
+        path: path.relative(cwd, indexSourcePath).replace(/\\/g, "/")
+      }
+    ]
+  }
+
+  const items = Array.isArray(registry.items) ? registry.items : []
+  const existingIndexIdx = items.findIndex((item: any) =>
+    item && item.name === "index"
+  )
+
+  if (existingIndexIdx >= 0) {
+    items[existingIndexIdx] = {
+      ...items[existingIndexIdx],
+      ...indexItem
+    }
+  } else {
+    items.push(indexItem)
+  }
+}
+
+function extractExportedModules(content: string): string[] {
+  const exports = new Set<string>()
+  const starExportRegex = /export\s+\*\s+from\s+['"]\.\/([^'"]+)['"]/g
+  const namedExportRegex = /export\s+\{[^}]+\}\s+from\s+['"]\.\/([^'"]+)['"]/g
+
+  let match: RegExpExecArray | null
+  while ((match = starExportRegex.exec(content)) !== null) {
+    exports.add(match[1])
+  }
+  while ((match = namedExportRegex.exec(content)) !== null) {
+    exports.add(match[1])
+  }
+
+  return [...exports]
+}
+
+function extractFileDependencies(content: string): string[] {
+  const dependencies = new Set<string>()
+  const importRegex = /import\s+[^;\n]+?from\s+['"]([^'"]+)['"]/g
+
+  let match: RegExpExecArray | null
+  while ((match = importRegex.exec(content)) !== null) {
+    const moduleName = match[1]
+    if (isExternalDependency(moduleName)) {
+      dependencies.add(moduleName)
+    }
+  }
+
+  return [...dependencies]
 }

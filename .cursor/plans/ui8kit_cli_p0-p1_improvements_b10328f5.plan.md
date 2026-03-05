@@ -4,16 +4,16 @@ overview: Systematic improvement of the ui8kit CLI to industry-grade quality, co
 todos:
   - id: p1-4-extract-utils
     content: "P1-4: Extract detectPackageManager/installDependencies into src/utils/package-manager.ts, create src/utils/logger.ts with levels and verbose support"
-    status: in_progress
+    status: completed
   - id: p1-2-typed-errors
     content: "P1-2: Create src/utils/errors.ts with typed error classes (RegistryNotFoundError, ConfigNotFoundError, NetworkError, etc.) and centralized handleError()"
-    status: pending
+    status: completed
   - id: p0-1-config-root
     content: "P0-1: Move ui8kit.config.json from ./src/ to project root. Update saveConfig(), findConfig(), init.ts"
     status: completed
   - id: p1-1-init-prompts
     content: "P1-1: Replace init prompts with 2 questions (globalCss, aliases). Hardcode typescript:true, framework:vite-react. Add globalCss to configSchema"
-    status: pending
+    status: completed
   - id: p0-3-install-deps
     content: "P0-3: Install clsx and tailwind-merge during init using shared package-manager utility"
     status: completed
@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: p1-6-verbose-mode
     content: "P1-6: Add --verbose global flag. Move CDN/fetch logging to logger.debug(). Clean normal output to spinners + results only"
-    status: pending
+    status: completed
   - id: p0-5-cdn-fallback
     content: "P0-5: Merge retry-api.ts into api.ts. Add default timeout (10s), automatic CDN fallback, configurable retries. Delete retry-api.ts"
     status: completed
@@ -34,13 +34,13 @@ todos:
     status: completed
   - id: p1-3-multiselect
     content: "P1-3: Interactive multiselect when add is called with no arguments. Fetch registry, show grouped component list"
-    status: pending
+    status: completed
   - id: p1-7-registry-deps
     content: "P1-7: Implement recursive registryDependencies resolution with topological sort, dedup, circular dep detection in src/utils/dependency-resolver.ts"
-    status: pending
+    status: completed
   - id: p1-5-cwd-flag
     content: "P1-5: Add global --cwd flag to program level, apply process.chdir() at startup, remove duplicate --cwd from scan/build"
-    status: pending
+    status: completed
 isProject: false
 ---
 

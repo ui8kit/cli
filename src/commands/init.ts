@@ -9,6 +9,8 @@ import { installDependencies } from "../utils/package-manager.js"
 import path from "path"
 import fs from "fs-extra"
 import fetch from "node-fetch"
+import { logger } from "../utils/logger.js"
+import { handleError } from "../utils/errors.js"
 
 interface InitOptions {
   yes?: boolean
@@ -18,7 +20,7 @@ interface InitOptions {
 export async function initCommand(options: InitOptions) {
   const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
   
-  console.log(chalk.blue(`🚀 ${CLI_MESSAGES.info.initializing(registryName)}`))
+  logger.info(CLI_MESSAGES.info.initializing(registryName))
   
   // Check if it's a Vite project
   const viteDetected = await isViteProject()
@@ -46,7 +48,7 @@ export async function initCommand(options: InitOptions) {
     })
     
     if (!overwrite) {
-      console.log(chalk.yellow(`⚠️  ${CLI_MESSAGES.info.installationCancelled}`))
+      logger.warn(CLI_MESSAGES.info.installationCancelled)
       return
     }
   }
@@ -60,27 +62,37 @@ export async function initCommand(options: InitOptions) {
       $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
       framework: "vite-react",
       typescript: true,
+      globalCss: "src/index.css",
       aliases,
       registry: SCHEMA_CONFIG.defaultRegistry,
       componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
       libDir: SCHEMA_CONFIG.defaultDirectories.lib,
     }
   } else {
-    // Interactive setup
     const responses = await prompts([
       {
-        type: "confirm",
-        name: "typescript",
-        message: CLI_MESSAGES.prompts.typescript,
-        initial: true
+        type: "text",
+        name: "globalCss",
+        message: CLI_MESSAGES.prompts.globalCss,
+        initial: "src/index.css"
+      },
+      {
+        type: "text",
+        name: "aliasComponents",
+        message: CLI_MESSAGES.prompts.aliasComponents,
+        initial: "@/components"
       }
     ])
-    
+
+    const aliasComponents = responses.aliasComponents?.trim() || "@/components"
+    const globalCss = responses.globalCss || "src/index.css"
+    const configuredAliases = { ...aliases, "@/components": aliasComponents }
     config = {
       $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
       framework: "vite-react",
-      typescript: responses.typescript,
-      aliases,
+      typescript: true,
+      globalCss,
+      aliases: configuredAliases,
       registry: SCHEMA_CONFIG.defaultRegistry,
       componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
       libDir: SCHEMA_CONFIG.defaultDirectories.lib,
@@ -114,7 +126,7 @@ export async function initCommand(options: InitOptions) {
     
     spinner.succeed(CLI_MESSAGES.success.initialized(registryName))
     
-    console.log(chalk.green(`\n✅ ${CLI_MESSAGES.success.setupComplete(registryName)}`))
+    logger.success(`\n✅ ${CLI_MESSAGES.success.setupComplete(registryName)}`)
     console.log("\nDirectories created:")
     console.log(`  ${chalk.cyan("src/lib/")} - Utils, helpers, functions`)
     console.log(`  ${chalk.cyan("src/variants/")} - CVA variant configurations`)
@@ -128,8 +140,7 @@ export async function initCommand(options: InitOptions) {
 
   } catch (error) {
     spinner.fail(CLI_MESSAGES.errors.buildFailed)
-    console.error(chalk.red("❌ Error:"), (error as Error).message)
-    process.exit(1)
+    handleError(error)
   }
 }
 

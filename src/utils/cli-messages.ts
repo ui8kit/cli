@@ -38,6 +38,7 @@ export const CLI_MESSAGES = {
 
   // Info messages
   info: {
+    tryListComponents: (registryType: string) => `Run "npx ui8kit@latest add --all --registry ${registryType}" to list available components`,
     initializing: (registryName: string) => `Initializing UI8Kit in your project (${registryName} registry)...`,
     installing: (registryName: string) => `Installing from ${registryName} registry...`,
     installingAll: (registryName: string) => `Installing all available components from ${registryName} registry...`,
@@ -63,7 +64,8 @@ export const CLI_MESSAGES = {
 
   // Prompts
   prompts: {
-    typescript: "Are you using TypeScript?",
+    globalCss: "Where is your global CSS file?",
+    aliasComponents: "Configure import aliases?",
     overwrite: (registryName: string) =>
       `UI8Kit is already initialized for ${registryName} registry. Overwrite configuration?`,
   },

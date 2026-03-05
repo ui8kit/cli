@@ -9,6 +9,7 @@ import { addCommand } from "./commands/add.js"
 import { initCommand } from "./commands/init.js"
 import { buildCommand } from "./commands/build.js"
 import { scanCommand } from "./commands/scan.js"
+import { logger } from "./utils/logger.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkgPath = resolve(__dirname, "../package.json")
@@ -25,6 +26,8 @@ function getCliVersion(): string {
 const program = new Command()
 
 program
+  .option("-c, --cwd <dir>", "Working directory", process.cwd())
+  .option("-v, --verbose", "Enable verbose output")
   .name("ui8kit")
   .description("A CLI for adding UI components to your Vite React projects (UI8Kit registry)")
   .version(getCliVersion())
@@ -53,7 +56,6 @@ program
   .option("-r, --registry <type|path>", "Registry type (ui) or custom path", "ui")
   .option("-o, --output <file>", "Output registry file")
   .option("-s, --source <dir>", "Source directory to scan")
-  .option("--cwd <dir>", "Working directory")
   .action(async (options) => {
     await scanCommand(options)
   })
@@ -63,7 +65,6 @@ program
   .description("Build components registry")
   .argument("[registry]", "Path to registry.json file", "./src/registry.json")
   .option("-o, --output <path>", "Output directory", "./packages/registry/r")
-  .option("-c, --cwd <cwd>", "Working directory", process.cwd())
   .action(buildCommand)
 
 program.on("command:*", () => {
@@ -72,4 +73,26 @@ program.on("command:*", () => {
   process.exit(1)
 })
 
-program.parse() 
+program.hook("preAction", (_, actionCommand) => {
+  const actionOptions = actionCommand?.opts?.() as {
+    verbose?: boolean
+    cwd?: string
+  } | undefined
+  const globalOptions = program.opts() as {
+    verbose?: boolean
+    cwd?: string
+  }
+
+  const verbose = globalOptions.verbose || actionOptions?.verbose
+  const cwd = actionOptions?.cwd || globalOptions.cwd
+
+  if (verbose) {
+    logger.setVerbose(true)
+  }
+
+  if (cwd && resolve(process.cwd()) !== resolve(cwd)) {
+    process.chdir(cwd)
+  }
+})
+
+program.parse()

@@ -49,6 +49,11 @@ export function generateConfigSchema() {
         "default": true,
         "description": SCHEMA_CONFIG.fieldDescriptions.typescript
       },
+      "globalCss": {
+        "type": "string",
+        "default": "src/index.css",
+        "description": SCHEMA_CONFIG.fieldDescriptions.globalCss
+      },
       "aliases": {
         "type": "object",
         "additionalProperties": {

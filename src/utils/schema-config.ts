@@ -79,6 +79,7 @@ export const SCHEMA_CONFIG = {
     schema: "JSON Schema URL",
     framework: "Target framework",
     typescript: "Whether the project uses TypeScript",
+    globalCss: "Path to global styles entry file",
     aliases: "Path aliases for imports in UI8Kit structure",
     registry: "Default component registry",
     componentsDir: "Directory where utility components will be installed",

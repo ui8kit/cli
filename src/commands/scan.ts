@@ -6,6 +6,7 @@ import { glob } from "glob"
 import * as ts from "typescript"
 import { SCHEMA_CONFIG, isExternalDependency, TYPE_TO_FOLDER } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
+import { handleError } from "../utils/errors.js"
 
 interface ScanOptions {
   cwd: string
@@ -178,8 +179,7 @@ export async function scanCommand(
     console.log(`   DevDependencies: ${allDevDeps.size} unique (${Array.from(allDevDeps).join(", ") || "none"})`)
     
   } catch (error) {
-    console.error(chalk.red(`❌ ${CLI_MESSAGES.errors.scanFailed}`), (error as Error).message)
-    process.exit(1)
+    handleError(error)
   }
 }
 
