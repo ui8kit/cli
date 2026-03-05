@@ -41,7 +41,7 @@ export const CLI_MESSAGES = {
     initializing: (registryName: string) => `Initializing UI8Kit in your project (${registryName} registry)...`,
     installing: (registryName: string) => `Installing from ${registryName} registry...`,
     installingAll: (registryName: string) => `Installing all available components from ${registryName} registry...`,
-    retryEnabled: "Retry mode enabled - using enhanced connection logic",
+    retryEnabled: "Aggressive retry mode enabled (3 attempts per request)",
     fetchingComponentList: (registryType: string) => `Fetching component list from ${registryType}...`,
     fetchingRegistry: (registryType: string) => `Fetching ${registryType} registry index`,
     scanningComponents: (registryName: string) => `Scanning ${registryName} components...`,

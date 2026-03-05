@@ -2,11 +2,20 @@ import fetch from "node-fetch"
 import { Component, componentSchema } from "./schema.js"
 import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType } from "../utils/schema-config.js"
 
-// Cache for each registry type
 const registryCache = new Map<RegistryType, {
   workingCDN: string | null
   registryIndex: any
 }>()
+
+const DEFAULT_TIMEOUT_MS = 10_000
+const DEFAULT_MAX_RETRIES = 1
+const RETRY_DELAY_MS = 1200
+
+export interface RegistryFetchOptions {
+  excludeTypes?: string[]
+  maxRetries?: number
+  timeoutMs?: number
+}
 
 export function isUrl(path: string): boolean {
   try {
@@ -17,9 +26,6 @@ export function isUrl(path: string): boolean {
   }
 }
 
-/**
- * Get or initialize cache for specific registry
- */
 function getRegistryCache(registryType: RegistryType) {
   if (!registryCache.has(registryType)) {
     registryCache.set(registryType, {
@@ -30,84 +36,93 @@ function getRegistryCache(registryType: RegistryType) {
   return registryCache.get(registryType)!
 }
 
-/**
- * Find and cache the first working CDN from the list
- * This reduces requests by testing CDNs only once per session
- */
-async function findWorkingCDN(registryType: RegistryType): Promise<string> {
-  const cache = getRegistryCache(registryType)
-  
-  if (cache.workingCDN) {
-    return cache.workingCDN
+async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    }
+    return await response.json()
+  } finally {
+    clearTimeout(timeoutId)
   }
-  
-  const cdnUrls = getCdnUrls(registryType)
-  
-  for (const baseUrl of cdnUrls) {
+}
+
+async function fetchJsonWithRetry(url: string, maxRetries: number, timeoutMs: number): Promise<any> {
+  let attempt = 0
+  let lastError: unknown
+
+  while (attempt < maxRetries) {
+    attempt += 1
     try {
-      console.log(`🔍 Testing ${registryType} CDN: ${baseUrl}`)
-      const response = await fetch(`${baseUrl}/index.json`)
-      if (response.ok) {
-        cache.workingCDN = baseUrl
-        console.log(`✅ Using ${registryType} CDN: ${baseUrl}`)
-        return baseUrl
-      }
+      return await fetchJsonWithTimeout(url, timeoutMs)
     } catch (error) {
-      console.log(`❌ ${registryType} CDN failed: ${baseUrl}`)
+      lastError = error
+      if (attempt >= maxRetries) {
+        break
+      }
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
     }
   }
-  
-  throw new Error(`No working ${registryType} CDN found`)
+
+  throw lastError instanceof Error ? lastError : new Error("Request failed")
 }
 
-/**
- * Fetch from the working CDN only, avoiding fallback requests
- * This ensures we use only 1 CDN per request instead of testing all 3
- */
-async function fetchFromWorkingCDN(path: string, registryType: RegistryType): Promise<any> {
-  const baseUrl = await findWorkingCDN(registryType)
-  const url = `${baseUrl}/${path}`
-  
-  console.log(`🎯 Fetching from ${registryType}: ${url}`)
-  const response = await fetch(url)
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-  }
-  
-  return await response.json()
-}
-
-/**
- * Get registry index and cache it for the session
- * This avoids repeated index.json requests
- */
-async function getRegistryIndex(registryType: RegistryType): Promise<any> {
+async function fetchFromRegistryPath(
+  requestPath: string,
+  registryType: RegistryType,
+  options: RegistryFetchOptions = {}
+): Promise<any> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const maxRetries = Math.max(1, options.maxRetries ?? DEFAULT_MAX_RETRIES)
   const cache = getRegistryCache(registryType)
-  
+  const cdnUrls = getCdnUrls(registryType)
+
+  const orderedUrls = cache.workingCDN
+    ? [cache.workingCDN, ...cdnUrls.filter(url => url !== cache.workingCDN)]
+    : [...cdnUrls]
+
+  let lastError: unknown
+  for (const baseUrl of orderedUrls) {
+    try {
+      const data = await fetchJsonWithRetry(`${baseUrl}/${requestPath}`, maxRetries, timeoutMs)
+      if (cache.workingCDN !== baseUrl) {
+        cache.registryIndex = null
+      }
+      cache.workingCDN = baseUrl
+      return data
+    } catch (error) {
+      lastError = error
+      if (cache.workingCDN === baseUrl) {
+        cache.workingCDN = null
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`No working ${registryType} CDN found`)
+}
+
+async function getRegistryIndex(registryType: RegistryType, options: RegistryFetchOptions = {}): Promise<any> {
+  const cache = getRegistryCache(registryType)
   if (cache.registryIndex) {
     return cache.registryIndex
   }
-  
-  console.log(`🌐 Fetching ${registryType} registry index`)
-  cache.registryIndex = await fetchFromWorkingCDN('index.json', registryType)
+
+  cache.registryIndex = await fetchFromRegistryPath("index.json", registryType, options)
   return cache.registryIndex
 }
 
-/**
- * Find component by type from index, then fetch directly from correct folder
- * This eliminates blind searching through all categories (ui, blocks, components, lib, templates)
- */
 async function getComponentByType(
   name: string,
   registryType: RegistryType,
-  excludeTypes: string[] = []
+  options: RegistryFetchOptions = {}
 ): Promise<Component | null> {
   try {
-    // 1. Get index to find component metadata
-    const index = await getRegistryIndex(registryType)
-    
-    // 2. Find component in index
+    const index = await getRegistryIndex(registryType, options)
+    const excludeTypes = options.excludeTypes ?? []
     const normalizedName = name.toLowerCase()
     const componentInfo = index.components?.find(
       (c: any) =>
@@ -119,8 +134,7 @@ async function getComponentByType(
       console.log(`❌ Component ${name} not found in ${registryType} registry`)
       return null
     }
-    
-    // 3. Determine folder by component type
+
     const folder =
       componentInfo.type === "registry:variants"
         ? "components/variants"
@@ -129,12 +143,10 @@ async function getComponentByType(
       console.log(`❌ Unknown component type: ${componentInfo.type}`)
       return null
     }
-    
-    // 4. Make targeted request to exact location (relative to /r)
+
     console.log(`🎯 Loading ${name} from /${folder}/ (type: ${componentInfo.type})`)
-    const data = await fetchFromWorkingCDN(`${folder}/${name}.json`, registryType)
+    const data = await fetchFromRegistryPath(`${folder}/${name}.json`, registryType, options)
     return componentSchema.parse(data)
-    
   } catch (error) {
     console.log(`❌ Failed to get component by type: ${(error as Error).message}`)
     return null
@@ -144,62 +156,51 @@ async function getComponentByType(
 export async function getComponent(
   name: string,
   registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
-  excludeTypes: string[] = []
+  options: RegistryFetchOptions = {}
 ): Promise<Component | null> {
   try {
     if (isUrl(name)) {
-      // If this is a URL - load directly
-      return await fetchFromUrl(name)
+      return await fetchFromUrl(name, options)
     }
-    
-    // Use optimized type-based lookup instead of category searching
-    return await getComponentByType(name, registryType, excludeTypes)
-    
+
+    return await getComponentByType(name, registryType, options)
   } catch (error) {
     console.error(`❌ Failed to fetch ${name} from ${registryType}:`, (error as Error).message)
     return null
   }
 }
 
-async function fetchFromUrl(url: string): Promise<Component | null> {
+async function fetchFromUrl(url: string, options: RegistryFetchOptions = {}): Promise<Component | null> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const maxRetries = Math.max(1, options.maxRetries ?? DEFAULT_MAX_RETRIES)
   console.log(`🌐 Fetching component from: ${url}`)
-  
-  const response = await fetch(url)
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-  }
-  
-  const data = await response.json()
+
+  const data = await fetchJsonWithRetry(url, maxRetries, timeoutMs)
   return componentSchema.parse(data)
 }
 
 export async function getAllComponents(
   registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
-  excludeTypes: string[] = []
+  options: RegistryFetchOptions = {}
 ): Promise<Component[]> {
   try {
     console.log(`🌐 Fetching all ${registryType} components using optimized approach`)
-    
-    // Get index once, then fetch each component by type
-    const indexData = await getRegistryIndex(registryType)
+    const indexData = await getRegistryIndex(registryType, options)
     const components: Component[] = []
-    
-    // Get all components from the index
+    const excludeTypes = options.excludeTypes ?? []
+
     if (indexData.components && Array.isArray(indexData.components)) {
       for (const componentInfo of indexData.components) {
         if (excludeTypes.includes(componentInfo.type)) {
           continue
         }
-        const component = await getComponent(componentInfo.name, registryType, excludeTypes)
+        const component = await getComponent(componentInfo.name, registryType, options)
         if (component) {
           components.push(component)
         }
       }
     }
-    
     return components
-    
   } catch (error) {
     console.error(`❌ Failed to fetch all ${registryType} components:`, (error as Error).message)
     return []
@@ -209,24 +210,20 @@ export async function getAllComponents(
 export async function getComponents(
   names: string[],
   registryType: RegistryType = SCHEMA_CONFIG.defaultRegistryType,
-  excludeTypes: string[] = []
+  options: RegistryFetchOptions = {}
 ): Promise<Component[]> {
   const components: Component[] = []
-  
+
   for (const name of names) {
-    const component = await getComponent(name, registryType, excludeTypes)
+    const component = await getComponent(name, registryType, options)
     if (component) {
       components.push(component)
     }
   }
-  
+
   return components
 }
 
-/**
- * Reset cached CDN and index for testing or error recovery
- * This allows fallback to other CDNs if the current one fails
- */
 export function resetCache(registryType?: RegistryType): void {
   if (registryType) {
     registryCache.delete(registryType)

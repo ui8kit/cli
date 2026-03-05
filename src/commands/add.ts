@@ -4,7 +4,6 @@ import path from "path"
 import fs from "fs-extra"
 import fetch from "node-fetch"
 import { getComponent, getAllComponents } from "../registry/api.js"
-import { getComponentWithRetry, getAllComponentsWithRetry } from "../registry/retry-api.js"
 import { findConfig } from "../utils/project.js"
 import { Component, type Config } from "../registry/schema.js"
 import { SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
@@ -25,9 +24,13 @@ const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
 
 export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
+  const requestOptions = {
+    excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
+    maxRetries: options.retry ? 3 : 1
+  }
   
   if (options.all || components.includes("all")) {
-    return await addAllComponents(options, registryType)
+    return await addAllComponents(options, registryType, requestOptions)
   }
   
   if (components.length === 0) {
@@ -49,11 +52,8 @@ export async function addCommand(components: string[], options: AddOptions) {
     process.exit(1)
   }
   
-  const getComponentFn = options.retry
-    ? (name: string, type: RegistryType) =>
-        getComponentWithRetry(name, type, ADD_EXCLUDED_COMPONENT_TYPES)
-    : (name: string, type: RegistryType) =>
-        getComponent(name, type, ADD_EXCLUDED_COMPONENT_TYPES)
+  const getComponentFn = (name: string, type: RegistryType) =>
+    getComponent(name, type, requestOptions)
   
   if (options.retry) {
     console.log(chalk.blue(`🔄 ${CLI_MESSAGES.info.retryEnabled}`))
@@ -66,7 +66,11 @@ export async function addCommand(components: string[], options: AddOptions) {
   displayInstallationSummary(registryType, results)
 }
 
-async function addAllComponents(options: AddOptions, registryType: RegistryType) {
+async function addAllComponents(
+  options: AddOptions,
+  registryType: RegistryType,
+  requestOptions: { excludeTypes: string[]; maxRetries: number }
+) {
   console.log(chalk.blue(`🚀 ${CLI_MESSAGES.info.installingAll(registryType)}`))
 
   const validation = await validateComponentInstallation([], registryType)
@@ -82,9 +86,7 @@ async function addAllComponents(options: AddOptions, registryType: RegistryType)
     process.exit(1)
   }
   
-  const getAllComponentsFn = options.retry
-    ? (type: RegistryType) => getAllComponentsWithRetry(type, ADD_EXCLUDED_COMPONENT_TYPES)
-    : (type: RegistryType) => getAllComponents(type, ADD_EXCLUDED_COMPONENT_TYPES)
+  const getAllComponentsFn = (type: RegistryType) => getAllComponents(type, requestOptions)
   
   if (options.retry) {
     console.log(chalk.blue(`🔄 ${CLI_MESSAGES.info.retryEnabled}`))
@@ -117,7 +119,7 @@ async function addAllComponents(options: AddOptions, registryType: RegistryType)
       allComponents.map(c => c.name),
       registryType,
       config,
-      options.retry ? getComponentWithRetry : getComponent,
+      (name: string, type: RegistryType) => getComponent(name, type, requestOptions),
       options,
       allComponents
     )

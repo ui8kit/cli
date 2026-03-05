@@ -4,31 +4,34 @@ overview: Systematic improvement of the ui8kit CLI to industry-grade quality, co
 todos:
   - id: p1-4-extract-utils
     content: "P1-4: Extract detectPackageManager/installDependencies into src/utils/package-manager.ts, create src/utils/logger.ts with levels and verbose support"
-    status: pending
+    status: in_progress
   - id: p1-2-typed-errors
     content: "P1-2: Create src/utils/errors.ts with typed error classes (RegistryNotFoundError, ConfigNotFoundError, NetworkError, etc.) and centralized handleError()"
     status: pending
   - id: p0-1-config-root
     content: "P0-1: Move ui8kit.config.json from ./src/ to project root. Update saveConfig(), findConfig(), init.ts"
-    status: pending
+    status: completed
   - id: p1-1-init-prompts
     content: "P1-1: Replace init prompts with 2 questions (globalCss, aliases). Hardcode typescript:true, framework:vite-react. Add globalCss to configSchema"
     status: pending
   - id: p0-3-install-deps
     content: "P0-3: Install clsx and tailwind-merge during init using shared package-manager utility"
-    status: pending
+    status: completed
+  - id: p0-3a-variants-index-freshness
+    content: "P0-3A: Add explicit variants/index.ts freshness/version check against CDN (separate from installVariantsIndex fallback)"
+    status: completed
   - id: p1-6-verbose-mode
     content: "P1-6: Add --verbose global flag. Move CDN/fetch logging to logger.debug(). Clean normal output to spinners + results only"
     status: pending
   - id: p0-5-cdn-fallback
     content: "P0-5: Merge retry-api.ts into api.ts. Add default timeout (10s), automatic CDN fallback, configurable retries. Delete retry-api.ts"
-    status: pending
+    status: completed
   - id: p0-2-search-fix
     content: "P0-2: Case-insensitive component search, exclude registry:variants and registry:lib from add lookups"
-    status: pending
+    status: completed
   - id: p0-4-preflight
     content: "P0-4: Implement real preflight checks in registry-validator.ts (package.json, config exists, Node version). Offer to run init if config missing"
-    status: pending
+    status: completed
   - id: p1-3-multiselect
     content: "P1-3: Interactive multiselect when add is called with no arguments. Fetch registry, show grouped component list"
     status: pending
@@ -80,6 +83,8 @@ await installCoreDependencies(coreDeps, spinner)
 ```
 
 - Extract `detectPackageManager()` and `installDependencies()` from [src/commands/add.ts](src/commands/add.ts) into a shared utility `src/utils/package-manager.ts` so both `init.ts` and `add.ts` can use them.
+
+**Status note:** Added explicit CDN freshness sync for `variants/index.ts` (create/update/unchanged detection) as a dedicated step, so this is tracked independently from the base `installVariantsIndex()` flow.
 
 ### P0-4. Preflight checks for `add` command
 

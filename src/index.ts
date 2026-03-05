@@ -44,7 +44,7 @@ program
   .option("-f, --force", "Overwrite existing files")
   .option("-r, --registry <type>", "Registry type: ui", "ui")
   .option("--dry-run", "Show what would be installed without installing")
-  .option("--retry", "Enable retry logic for unreliable connections")
+  .option("--retry", "Aggressive retry mode (3 attempts per CDN request)")
   .action(addCommand)
 
 program

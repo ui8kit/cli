@@ -180,8 +180,17 @@ async function installCoreFiles(registryType: RegistryType, config: Config, spin
   }
   
   // Install variants/index.ts
-  spinner.text = `Installing variants index...`
-  await installVariantsIndex(cdnUrls, config)
+  spinner.text = "Syncing variants index..."
+  const variantsIndexStatus = await installVariantsIndex(cdnUrls)
+  if (variantsIndexStatus === "updated") {
+    spinner.text = "Updated variants/index.ts from CDN"
+  } else if (variantsIndexStatus === "created") {
+    spinner.text = "Created variants/index.ts from CDN"
+  } else if (variantsIndexStatus === "unchanged") {
+    spinner.text = "variants/index.ts is up to date"
+  } else {
+    spinner.text = "variants/index.ts not found in registry (skipped)"
+  }
   
   spinner.text = `✅ Installed ${libItems.length} utilities and ${variantItems.length} variants`
 }
@@ -226,7 +235,7 @@ async function installComponentFromRegistry(
   }
 }
 
-async function installVariantsIndex(cdnUrls: string[], config: Config): Promise<void> {
+async function installVariantsIndex(cdnUrls: string[]): Promise<"created" | "updated" | "unchanged" | "skipped"> {
   for (const baseUrl of cdnUrls) {
     try {
       // Try to fetch index component from variants
@@ -235,21 +244,37 @@ async function installVariantsIndex(cdnUrls: string[], config: Config): Promise<
       
       if (response.ok) {
         const component = await response.json() as Component
-        
+
         for (const file of component.files) {
           const fileName = path.basename(file.path)
+          if (!fileName.startsWith("index.")) {
+            continue
+          }
+
           const targetDir = SCHEMA_CONFIG.defaultDirectories.variants
           const targetPath = path.join(process.cwd(), targetDir, fileName)
+          const incomingContent = file.content || ""
+          const exists = await fs.pathExists(targetPath)
+
+          if (exists) {
+            const currentContent = await fs.readFile(targetPath, "utf-8")
+            if (currentContent === incomingContent) {
+              return "unchanged"
+            }
+          }
+
           await fs.ensureDir(path.dirname(targetPath))
-          await fs.writeFile(targetPath, file.content || "", "utf-8")
+          await fs.writeFile(targetPath, incomingContent, "utf-8")
+          return exists ? "updated" : "created"
         }
-        return
       }
     } catch {
       // Fallback: just continue if index doesn't exist
       continue
     }
   }
+
+  return "skipped"
 }
 
 async function createUtilsFile(libDir: string, typescript: boolean): Promise<void> {
