@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.8] - 2026-03-06
+
+### Added
+- Added configurable CDN override strategy for command execution via config and flags (`registryUrl`, `registryVersion`, `strictCdn`) across `init`, `add`, `list`, and `diff`.
+- Extended CDN diagnostics with `--cdn` in `info` to expose resolved CDN order, active overrides, and working CDN cache state.
+- Added registry artifact cleanup command `registry clean` with `--dry-run`, `--force`, and `--all`.
+- Added full local-state reset command `reset` with `--yes`, `--dry-run`, `--force`, and optional `--with-cache`.
+- Added `get-cdn` diagnostics coverage and README documentation updates for cache/version troubleshooting workflows.
+- Added `ui8kit.map.json` generation from `src/lib/utility-props.map.ts` into the `build` pipeline.
+- Added TypeScript AST-based utility-map parsing and transformation tests.
+
+### Changed
+- Reordered default CDN base URLs to prefer `unpkg` before `cdn.jsdelivr.net`, then GitHub raw fallback.
+- Improved registry cache handling in `build` by clearing cache before assembling artifacts.
+- Updated command docs to describe new cleanup/reset workflows and CDN override examples.
+
+### Fixed
+- Fixed scanning of `variants/index.ts` re-export style entries using TypeScript AST export validation in the manifest pipeline.
+- Fixed build collisions for synthetic `index` items by binding artifacts and synthetic variant entries by component identity (`name + type`).
+- Fixed `build`/`scan` consistency for `components/index` and `components/variants/index` preservation in the generated registry index.
+
 ## [1.3.5] - 2026-03-06
 
 ### Added
