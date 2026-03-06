@@ -1,11 +1,28 @@
 # Changelog
 
+## [1.3.0] - 2026-03-06
+
+### Added
+- Added `info --json` output mode (`src/commands/info.ts`, `src/index.ts`) for machine-readable diagnostics.
+- Added regression coverage for `scan`/`build` around variants index behavior (`tests/commands/scan.test.ts`, `tests/commands/build.test.ts`).
+- Added practical roadmap and quality backlog documentation (`.project/IMPROVEMENT.md`, `.project/BACKLOG.md`, `.cursor/plans/refactor_variant_index_flow_ac7a81fe.plan.md`).
+- Added `tests/README.md` documenting CLI test intent, execution strategy, and command coverage.
+
+### Changed
+- Improved CLI diagnostics path with JSON output and richer command coverage visibility via `info` command tests (`tests/commands/info.test.ts`).
+- `build` now resets cache state before processing (`clearCache` + `resetCache`) to avoid stale artifacts during rebuilds.
+- `build` now updates variants index artifacts by composite identity (`type + name`) to prevent collisions across component and variants index entries.
+- `scan` now uses TypeScript AST validation for exports so re-export-based `variants/index.ts` variants are detected reliably.
+
+### Fixed
+- Fixed missing `registry:variants` `index` entry in scanned manifest when `src/variants/index.ts` uses only re-export syntax.
+- Fixed dependency extraction for synthetic variants index to ignore false-positive local imports and parse external dependencies safely via AST.
+
 ## [1.2.2] - 2026-03-05
 
 ### Final
 - Release status: Ready.
 - Build and checks: `npm run build`, `npm run type-check`, and `npm run test` pass.
-- Validation report: `REPORT.md` with 17 command checks (all passing).
 
 ### Added
 - `info` command for environment diagnostics (`ui8kit info`) including CLI version, runtime, config status, CDN and cache health.
@@ -50,14 +67,13 @@
 - Command-level runtime flow for `scan` / `build` / `add` now respects root-level `--cwd` consistently.
 - P2 `diff` flow is now available to detect local component updates against registry snapshots.
 
-## [Unreleased]
-
-### Unchanged
-- No pending changes at the moment.
-
 ## [1.2.0] - 2026-03-05
 
 ### Fixed
 - Completed remaining P1 CLI improvements and stabilized trial run against `.test-app`.
 - Added a full trial report in `REPORT.md` for `init`, `add`, `scan`, and `build` commands.
 
+## [Unreleased]
+
+### Unchanged
+- No pending changes at the moment.
