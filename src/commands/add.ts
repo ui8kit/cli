@@ -6,7 +6,7 @@ import prompts from "prompts"
 import { getComponent, getAllComponents } from "../registry/api.js"
 import { findConfig } from "../utils/project.js"
 import { Component, type Config } from "../registry/schema.js"
-import { SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, type RegistryType, getCdnUrls, type CdnResolutionOptions } from "../utils/schema-config.js"
 import { validateComponentInstallation, handleValidationError } from "../utils/registry-validator.js"
 import { checkProjectDependencies, showDependencyStatus } from "../utils/dependency-checker.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
@@ -24,16 +24,25 @@ interface AddOptions {
   retry?: boolean
   registry?: string
   cache?: boolean
+  registryUrl?: string
+  registryVersion?: string
+  strictCdn?: boolean
 }
 
 const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
 
 export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
+  const cdnResolution: CdnResolutionOptions = {
+    registryUrl: options.registryUrl,
+    registryVersion: options.registryVersion,
+    strictCdn: options.strictCdn
+  }
   const requestOptions = {
     excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
     maxRetries: options.retry ? 3 : 1,
-    noCache: options.cache === false
+    noCache: options.cache === false,
+    cdn: cdnResolution
   }
 
   try {
@@ -87,7 +96,7 @@ export async function addCommand(components: string[], options: AddOptions) {
 async function addAllComponents(
   options: AddOptions,
   registryType: RegistryType,
-  requestOptions: { excludeTypes: string[]; maxRetries: number }
+  requestOptions: { excludeTypes: string[]; maxRetries: number; noCache?: boolean; cdn?: CdnResolutionOptions }
 ) {
   logger.info(CLI_MESSAGES.info.installingAll(registryType))
 
@@ -144,7 +153,7 @@ async function addAllComponents(
     )
     
     // Install components/index.ts when using --all
-    await installComponentsIndex(registryType, config)
+    await installComponentsIndex(registryType, config, requestOptions.cdn)
     
     displayInstallationSummary(registryType, results)
     
@@ -505,11 +514,11 @@ function resolveRegistryType(registryInput?: string): RegistryType {
   return SCHEMA_CONFIG.defaultRegistryType
 }
 
-async function installComponentsIndex(registryType: RegistryType, config: Config): Promise<void> {
+async function installComponentsIndex(registryType: RegistryType, config: Config, cdnResolution: CdnResolutionOptions = {}): Promise<void> {
   const spinner = ora("Installing components index...").start()
   
   try {
-    const cdnUrls = SCHEMA_CONFIG.cdnBaseUrls
+    const cdnUrls = getCdnUrls(registryType, cdnResolution)
     
     for (const baseUrl of cdnUrls) {
       try {

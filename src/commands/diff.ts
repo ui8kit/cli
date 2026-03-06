@@ -7,7 +7,7 @@ import { Component, Config } from "../registry/schema.js"
 import { getAllComponents } from "../registry/api.js"
 import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
 import { applyTransforms } from "../utils/transform.js"
-import { SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, type RegistryType, CdnResolutionOptions } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { logger } from "../utils/logger.js"
 import { handleError } from "../utils/errors.js"
@@ -16,6 +16,9 @@ interface DiffOptions {
   registry?: string
   json?: boolean
   cache?: boolean
+  registryUrl?: string
+  registryVersion?: string
+  strictCdn?: boolean
 }
 
 interface ScannedLocalComponent {
@@ -33,6 +36,11 @@ interface ComponentDiffSummary {
 export async function diffCommand(componentName?: string, options: DiffOptions = {}) {
   try {
     const registryType = resolveRegistryType(options.registry)
+    const cdnResolution: CdnResolutionOptions = {
+      registryUrl: options.registryUrl,
+      registryVersion: options.registryVersion,
+      strictCdn: options.strictCdn
+    }
     const config = await findConfig(registryType)
     const defaultConfig: Config = config ?? {
       framework: SCHEMA_CONFIG.supportedFrameworks[0],
@@ -50,7 +58,10 @@ export async function diffCommand(componentName?: string, options: DiffOptions =
       return
     }
 
-    const registryComponents = await getAllComponents(registryType, { noCache: options.cache === false })
+    const registryComponents = await getAllComponents(registryType, {
+      noCache: options.cache === false,
+      cdn: cdnResolution
+    })
     const registryIndex = new Map(registryComponents.map(item => [item.name.toLowerCase(), item]))
 
     const targets = componentName
@@ -63,7 +74,10 @@ export async function diffCommand(componentName?: string, options: DiffOptions =
     }
 
     const results: ComponentDiffSummary[] = []
-    logger.info(CLI_MESSAGES.info.checkingForUpdates)
+    const shouldLogOutput = !options.json
+    if (shouldLogOutput) {
+      logger.info(CLI_MESSAGES.info.checkingForUpdates)
+    }
     for (const item of targets) {
       const remoteComponent = registryIndex.get(item.name.toLowerCase())
       if (!remoteComponent) {

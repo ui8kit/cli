@@ -57,11 +57,10 @@ describe("diff command", () => {
       }
     ] as any)
 
-    const infoSpy = vi.spyOn(logger, "info")
     await diffCommand()
 
-    const infoCalls = infoSpy.mock.calls.flat().map((item) => String(item[0]))
-    expect(infoCalls.some(line => line.includes("button (registry:ui)"))).toBe(true)
+    const outputLines = output.join("\n")
+    expect(outputLines).toContain("button (registry:ui)")
   })
 
   it("detects changed local components", async () => {
@@ -128,5 +127,28 @@ describe("diff command", () => {
     await diffCommand("missing")
 
     expect(warnSpy).toHaveBeenCalledWith(`Component "missing" not found in local project structure`)
+  })
+
+  it("passes explicit CDN options to registry fetch", async () => {
+    const getComponents = vi.spyOn(registryApi, "getAllComponents")
+    getComponents.mockResolvedValue([])
+
+    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
+    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+
+    await diffCommand(undefined, {
+      registryUrl: "https://cdn.example.com/@ui8kit/registry@latest/r",
+      registryVersion: "1.5.1",
+      strictCdn: true
+    })
+
+    expect(getComponents).toHaveBeenCalledWith("ui", {
+      noCache: false,
+      cdn: {
+        registryUrl: "https://cdn.example.com/@ui8kit/registry@latest/r",
+        registryVersion: "1.5.1",
+        strictCdn: true
+      }
+    })
   })
 })

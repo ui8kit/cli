@@ -2,13 +2,14 @@
 
 import { readFile } from "node:fs/promises"
 import path from "node:path"
+import { pathToFileURL } from "node:url"
 
 const SUFFIXES = [
   "components/variants/index.json",
   "components/ui/Button.json",
 ]
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const configFiles = []
   const suffixes = [...SUFFIXES]
   let jsonOutput = false
@@ -52,7 +53,7 @@ function parseArgs(argv) {
   }
 }
 
-function extractCdnBaseUrls(fileContent) {
+export function extractCdnBaseUrls(fileContent) {
   const match = fileContent.match(/cdnBaseUrls\s*:\s*\[([\s\S]*?)\]/m)
   if (!match) {
     return []
@@ -60,18 +61,37 @@ function extractCdnBaseUrls(fileContent) {
   return Array.from(match[1].matchAll(/["'`]\s*([^"'`]+?)\s*["'`]/g)).map((m) => m[1]).filter(Boolean)
 }
 
-function normalizeBaseUrl(baseUrl) {
+export function normalizeBaseUrl(baseUrl) {
   return baseUrl.trim().replace(/\/+$/, "")
 }
 
-function normalizeRelativePath(value) {
+export function normalizeRelativePath(value) {
   return value
     .trim()
     .replace(/^\/+/, "")
     .replace(/^r\/+/, "")
 }
 
-async function readUrlsFromFiles(configFiles) {
+export function buildTargetUrls(cdnBaseUrls, suffixes) {
+  const targets = []
+  for (const base of cdnBaseUrls) {
+    const baseUrl = normalizeBaseUrl(base).replace(/\/r\/?$/, "")
+    for (const suffix of suffixes) {
+      const normalizedSuffix = normalizeRelativePath(suffix)
+      if (!normalizedSuffix) {
+        continue
+      }
+      targets.push({
+        baseUrl,
+        suffix: normalizedSuffix,
+        target: `${baseUrl}/r/${normalizedSuffix}`
+      })
+    }
+  }
+  return targets
+}
+
+export async function readUrlsFromFiles(configFiles) {
   const baseUrls = new Set()
   for (const file of configFiles) {
     const resolvedPath = path.resolve(process.cwd(), file)
@@ -137,17 +157,7 @@ async function main() {
   }
 
   const allBases = [...new Set([...bases, ...extraUrls.filter((url) => url.startsWith("http://") || url.startsWith("https://"))])]
-  const targets = []
-  for (const base of allBases) {
-    for (const suffix of suffixes) {
-      const baseUrl = normalizeBaseUrl(base).replace(/\/r\/?$/, "")
-      const normalizedSuffix = normalizeRelativePath(suffix)
-      if (!normalizedSuffix) {
-        continue
-      }
-      targets.push(`${baseUrl}/r/${normalizedSuffix}`)
-    }
-  }
+  const targets = buildTargetUrls(allBases, suffixes).map(entry => entry.target)
 
   const results = []
   for (const target of targets) {
@@ -176,7 +186,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+if (import.meta.url === (process.argv[1] ? pathToFileURL(process.argv[1]).href : "")) {
+  main().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}

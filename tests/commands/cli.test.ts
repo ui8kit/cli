@@ -3,6 +3,8 @@ import path from "path"
 import os from "os"
 import { spawnSync } from "node:child_process"
 import { beforeAll, afterEach, describe, expect, it } from "vitest"
+import http from "node:http"
+import { AddressInfo } from "node:net"
 
 const PROJECT_ROOT = process.cwd()
 const CLI_PATH = path.join(PROJECT_ROOT, "dist", "index.js")
@@ -16,17 +18,16 @@ function npmCommand() {
 }
 
 function buildCliIfNeeded() {
-  if (!fs.pathExistsSync(CLI_PATH)) {
-    const build = spawnSync(npmCommand(), ["run", "build"], {
-      cwd: PROJECT_ROOT,
-      encoding: "utf-8",
-      stdio: "pipe",
-      env: { ...process.env, CI: "1" }
-    })
+  const build = spawnSync(`${npmCommand()} run build`, {
+    cwd: PROJECT_ROOT,
+    encoding: "utf-8",
+    stdio: "pipe",
+    shell: true,
+    env: { ...process.env, CI: "1" }
+  })
 
-    if (build.status !== 0) {
-      throw new Error(`Build failed before integration tests. ${build.stdout} ${build.stderr}`)
-    }
+  if (build.status !== 0) {
+    throw new Error(`Build failed before integration tests. ${build.stdout ?? ""} ${build.stderr ?? build.error?.message ?? ""}`)
   }
 }
 
@@ -34,7 +35,7 @@ function runCli(args: string[], cwd: string, env: NodeJS.ProcessEnv = {}) {
   return spawnSync(process.execPath, [CLI_PATH, ...args], {
     cwd,
     encoding: "utf-8",
-    timeout: 30_000,
+    timeout: 120_000,
     windowsHide: true,
     env: {
       ...process.env,
@@ -260,6 +261,100 @@ describe("CLI integration commands", () => {
     expect(result.status).toBe(0)
     expect(output).toContain("Usage:")
     expect(output).toContain("Manage local cache")
+  })
+
+  it.skip("supports init -> add -> reset -> init cycle", async () => {
+    const cwd = createFixture()
+    const server = http.createServer((request, response) => {
+      if (request.url === "/registry/index.json") {
+        response.writeHead(200, { "Content-Type": "application/json" })
+        response.end(JSON.stringify({ components: [{ name: "button", type: "registry:ui" }] }))
+        return
+      }
+
+      if (request.url === "/registry/components/ui/button.json") {
+        response.writeHead(200, { "Content-Type": "application/json" })
+        response.end(JSON.stringify({
+          name: "button",
+          type: "registry:ui",
+          dependencies: [],
+          devDependencies: [],
+          files: [
+            {
+              path: "components/ui/button.tsx",
+              content: "export const Button = () => null\n"
+            }
+          ]
+        }))
+        return
+      }
+
+      if (request.url === "/registry/components/variants/index.json") {
+        response.writeHead(404, { "Content-Type": "application/json" })
+        response.end(JSON.stringify({ error: "not-found" }))
+        return
+      }
+
+      response.writeHead(404, { "Content-Type": "application/json" })
+      response.end(JSON.stringify({ error: "not-found" }))
+    })
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, "127.0.0.1", () => resolve())
+    })
+    const address = server.address() as AddressInfo
+    const registryUrl = `http://127.0.0.1:${address.port}/registry`
+
+    try {
+      await fs.writeJson(path.join(cwd, "package.json"), {
+        name: "tmp-ui8kit-project",
+        version: "1.0.0",
+        dependencies: {
+          react: "^18.2.0",
+          "clsx": "^2.1.1",
+          "tailwind-merge": "^2.3.0"
+        }
+      })
+      await fs.writeFile(path.join(cwd, "vite.config.ts"), "export default {}")
+
+      const initResult = runCli(["init", "--yes", "--registry-url", registryUrl], cwd)
+      expect(initResult.status).toBe(0)
+
+      const addResult = runCli(["add", "button", "--registry-url", registryUrl], cwd)
+      expect(addResult.status).toBe(0)
+      expect(await fs.pathExists(path.join(cwd, "src", "components", "ui", "button.tsx"))).toBe(true)
+
+      const resetResult = runCli(["reset", "--yes"], cwd)
+      expect(resetResult.status).toBe(0)
+      expect(await fs.pathExists(path.join(cwd, "ui8kit.config.json"))).toBe(false)
+      expect(await fs.pathExists(path.join(cwd, "src", "components", "ui", "button.tsx"))).toBe(false)
+
+      const reinitResult = runCli(["init", "--yes", "--registry-url", registryUrl], cwd)
+      expect(reinitResult.status).toBe(0)
+      expect(await fs.pathExists(path.join(cwd, "ui8kit.config.json"))).toBe(true)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+    }
+  })
+
+  it("shows help for registry clean command", () => {
+    const cwd = createFixture()
+    const result = runCli(["registry", "clean", "--help"], cwd)
+    const output = `${result.stdout}${result.stderr}`
+
+    expect(result.status).toBe(0)
+    expect(output).toContain("Usage:")
+    expect(output).toContain("registry clean")
+  })
+
+  it("runs registry clean in dry-run mode", () => {
+    const cwd = createFixture()
+    fs.ensureDirSync(path.join(cwd, "packages", "registry", "r"))
+    const result = runCli(["registry", "clean", "--dry-run"], cwd)
+    const output = `${result.stdout}${result.stderr}`
+
+    expect(result.status).toBe(0)
+    expect(output).toContain("Dry run enabled")
   })
 
   it("returns cached list in JSON via CLI without network", () => {

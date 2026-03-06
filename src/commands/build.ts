@@ -7,6 +7,7 @@ import { registrySchema, registryItemSchema } from "../registry/build-schema.js"
 import { resetCache } from "../registry/api.js"
 import { generateConfigSchema, generateRegistrySchema, generateRegistryItemSchema } from "../utils/schema-generator.js"
 import { TYPE_TO_FOLDER, SCHEMA_CONFIG, isExternalDependency } from "../utils/schema-config.js"
+import { generateMap } from "../utils/map-generator.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { handleError } from "../utils/errors.js"
 import { clearCache } from "../utils/cache.js"
@@ -83,6 +84,18 @@ export async function buildCommand(
     
     // Create index file at /r/index.json
     await createIndexFile(registry, buildOptions.outputDir)
+
+    // Create map file at /packages/registry/ui8kit.map.json
+    const mapSourcePath = path.join(buildOptions.cwd, "src", "lib", "utility-props.map.ts")
+    const mapOutputPath = path.join(path.dirname(buildOptions.outputDir), "ui8kit.map.json")
+    const mapResult = await generateMap({
+      sourcePath: mapSourcePath,
+      outputPath: mapOutputPath,
+      skipMissing: true
+    })
+    if (mapResult.generated) {
+      console.log(chalk.green(`✅ Generated map file: ${mapResult.path}`))
+    }
     
     console.log(chalk.green(`✅ ${CLI_MESSAGES.success.registryBuilt}`))
     console.log(`Output: ${buildOptions.outputDir}`)

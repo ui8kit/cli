@@ -43,6 +43,9 @@ export const configSchema = z.object({
   registry: z.string().default(SCHEMA_CONFIG.defaultRegistry),
   componentsDir: z.string().default(SCHEMA_CONFIG.defaultDirectories.components as string),
   libDir: z.string().default(SCHEMA_CONFIG.defaultDirectories.lib as string),
+  registryUrl: z.string().url().optional(),
+  registryVersion: z.string().optional(),
+  strictCdn: z.boolean().default(false).optional(),
 })
 
 export type Config = z.infer<typeof configSchema> 

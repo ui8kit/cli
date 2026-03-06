@@ -10,6 +10,8 @@ import { listCommand } from "./commands/list.js"
 import { diffCommand } from "./commands/diff.js"
 import { cacheClearCommand } from "./commands/cache.js"
 import { infoCommand } from "./commands/info.js"
+import { registryCleanCommand } from "./commands/registry.js"
+import { resetCommand } from "./commands/reset.js"
 import { logger } from "./utils/logger.js"
 import { getCliVersion } from "./utils/cli-version.js"
 import { resolve } from "node:path"
@@ -29,6 +31,9 @@ program
   .description("List available components in registry")
   .option("-r, --registry <type>", "Registry type: ui", "ui")
   .option("--json", "Output raw JSON")
+  .option("--registry-url <url>", "Override CDN registry base URL")
+  .option("--registry-version <version>", "Override registry @latest version")
+  .option("--strict-cdn", "Disable fallback CDN providers when override is provided")
   .action((options) => listCommand(options))
 
 program
@@ -37,6 +42,9 @@ program
   .argument("[component]", "Component name")
   .option("-r, --registry <type>", "Registry type: ui", "ui")
   .option("--json", "Output diff in machine-readable JSON")
+  .option("--registry-url <url>", "Override CDN registry base URL")
+  .option("--registry-version <version>", "Override registry @latest version")
+  .option("--strict-cdn", "Disable fallback CDN providers when override is provided")
   .action((component, options) => diffCommand(component, options))
 
 program
@@ -47,9 +55,29 @@ program
   .action(cacheClearCommand)
 
 program
+  .command("registry")
+  .description("Manage generated registry artifacts")
+  .command("clean")
+  .description("Remove generated registry build artifacts")
+  .option("--dry-run", "Show what would be removed without deleting")
+  .option("--all", "Also remove src/registry.json if it exists")
+  .option("-f, --force", "Skip confirmation prompt")
+  .action(registryCleanCommand)
+
+program
+  .command("reset")
+  .description("Reset local UI8Kit state")
+  .option("--dry-run", "Show what would be removed without deleting")
+  .option("--with-cache", "Also clear CLI cache data")
+  .option("-y, --yes", "Skip prompts and perform reset")
+  .option("-f, --force", "Skip confirmation prompt")
+  .action(resetCommand)
+
+program
   .command("info")
   .description("Show environment and config diagnostics")
   .option("--json", "Output diagnostics as JSON")
+  .option("--cdn", "Show resolved CDN order and active overrides")
   .action(infoCommand)
 
 program
@@ -57,6 +85,9 @@ program
   .description("Initialize UI8Kit structure in your project")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option("-r, --registry <type>", "Registry type: ui", "ui")
+  .option("--registry-url <url>", "Override CDN registry base URL")
+  .option("--registry-version <version>", "Override registry @latest version")
+  .option("--strict-cdn", "Disable fallback CDN providers when override is provided")
   .action(initCommand)
 
 program
@@ -68,6 +99,9 @@ program
   .option("-r, --registry <type>", "Registry type: ui", "ui")
   .option("--dry-run", "Show what would be installed without installing")
   .option("--retry", "Aggressive retry mode (3 attempts per CDN request)")
+  .option("--registry-url <url>", "Override CDN registry base URL")
+  .option("--registry-version <version>", "Override registry @latest version")
+  .option("--strict-cdn", "Disable fallback CDN providers when override is provided")
   .action(addCommand)
 
 program

@@ -1,6 +1,6 @@
 import fetch from "node-fetch"
 import { Component, componentSchema } from "./schema.js"
-import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType, type CdnResolutionOptions } from "../utils/schema-config.js"
 import { logger } from "../utils/logger.js"
 import { getCachedJson, setCachedJson } from "../utils/cache.js"
 
@@ -20,6 +20,18 @@ export interface RegistryFetchOptions {
   maxRetries?: number
   timeoutMs?: number
   noCache?: boolean
+  cdn?: CdnResolutionOptions
+}
+
+export function getRegistryCdnState(
+  registryType: RegistryType,
+  options: RegistryFetchOptions = {}
+): { workingCDN: string | null; urls: string[] } {
+  const cache = getRegistryCache(registryType)
+  return {
+    workingCDN: cache.workingCDN,
+    urls: getCdnUrls(registryType, options.cdn)
+  }
 }
 
 export function isUrl(path: string): boolean {
@@ -84,7 +96,7 @@ async function fetchFromRegistryPath(
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxRetries = Math.max(1, options.maxRetries ?? DEFAULT_MAX_RETRIES)
   const cache = getRegistryCache(registryType)
-  const cdnUrls = getCdnUrls(registryType)
+  const cdnUrls = getCdnUrls(registryType, options.cdn)
 
   const orderedUrls = cache.workingCDN
     ? [cache.workingCDN, ...cdnUrls.filter(url => url !== cache.workingCDN)]

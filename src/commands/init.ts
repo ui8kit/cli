@@ -3,7 +3,7 @@ import prompts from "prompts"
 import ora, { type Ora } from "ora"
 import { isViteProject, hasReact, findConfig, saveConfig, ensureDir } from "../utils/project.js"
 import { Config, Component } from "../registry/schema.js"
-import { SCHEMA_CONFIG, getCdnUrls, type RegistryType } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, getCdnUrls, type RegistryType, type CdnResolutionOptions } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { installDependencies } from "../utils/package-manager.js"
 import path from "path"
@@ -15,6 +15,9 @@ import { handleError } from "../utils/errors.js"
 interface InitOptions {
   yes?: boolean
   registry?: string
+  registryUrl?: string
+  registryVersion?: string
+  strictCdn?: boolean
 }
 
 export interface InitConfigOptions {
@@ -22,6 +25,28 @@ export interface InitConfigOptions {
   registry?: string
   globalCss?: string
   aliasComponents?: string
+  registryUrl?: string
+  registryVersion?: string
+  strictCdn?: boolean
+}
+
+const INIT_FETCH_TIMEOUT_MS = 10_000
+
+async function fetchJsonFromRegistry<T>(url: string): Promise<T | null> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), INIT_FETCH_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) {
+      return null
+    }
+    return await response.json() as T
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export function buildInitConfig(options: InitConfigOptions): Config {
@@ -40,6 +65,9 @@ export function buildInitConfig(options: InitConfigOptions): Config {
       registry: SCHEMA_CONFIG.defaultRegistry,
       componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
       libDir: SCHEMA_CONFIG.defaultDirectories.lib,
+      registryUrl: options.registryUrl,
+      registryVersion: options.registryVersion,
+      strictCdn: options.strictCdn
     }
   }
 
@@ -52,11 +80,19 @@ export function buildInitConfig(options: InitConfigOptions): Config {
     registry: SCHEMA_CONFIG.defaultRegistry,
     componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
     libDir: SCHEMA_CONFIG.defaultDirectories.lib,
+    registryUrl: options.registryUrl,
+    registryVersion: options.registryVersion,
+    strictCdn: options.strictCdn
   }
 }
 
 export async function initCommand(options: InitOptions) {
   const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
+  const cdnOptions: CdnResolutionOptions = {
+    registryUrl: options.registryUrl,
+    registryVersion: options.registryVersion,
+    strictCdn: options.strictCdn
+  }
   
   logger.info(CLI_MESSAGES.info.initializing(registryName))
   
@@ -94,7 +130,7 @@ export async function initCommand(options: InitOptions) {
   let config: Config
   
   if (options.yes) {
-    config = buildInitConfig({ yes: true, registry: registryName })
+      config = buildInitConfig({ yes: true, registry: registryName, ...cdnOptions })
   } else {
     const responses = await prompts([
       {
@@ -117,7 +153,8 @@ export async function initCommand(options: InitOptions) {
       yes: false,
       registry: registryName,
       globalCss,
-      aliasComponents
+          aliasComponents,
+          ...cdnOptions
     })
   }
   
@@ -138,7 +175,7 @@ export async function initCommand(options: InitOptions) {
     spinner.text = "Installing core utilities and variants..."
     
     // Install utils and all variants from registry
-    await installCoreFiles(registryName as RegistryType, config, spinner)
+    await installCoreFiles(registryName as RegistryType, config, spinner, cdnOptions)
 
     // Install packages required by src/lib/utils.ts (cn helper).
     spinner.text = "Installing core dependencies..."
@@ -170,8 +207,12 @@ interface RegistryIndex {
   components: Array<{ name: string; type: string }>
 }
 
-async function installCoreFiles(registryType: RegistryType, config: Config, spinner: Ora): Promise<void> {
-  const cdnUrls = getCdnUrls(registryType)
+async function installCoreFiles(registryType: RegistryType, config: Config, spinner: Ora, cdnResolution: CdnResolutionOptions = {}): Promise<void> {
+  const cdnUrls = getCdnUrls(registryType, {
+    registryUrl: cdnResolution.registryUrl,
+    registryVersion: cdnResolution.registryVersion,
+    strictCdn: cdnResolution.strictCdn
+  })
   
   // Try to fetch registry index to get list of variants and utils
   let registryIndex: RegistryIndex | null = null
@@ -179,9 +220,9 @@ async function installCoreFiles(registryType: RegistryType, config: Config, spin
   for (const baseUrl of cdnUrls) {
     try {
       const indexUrl = `${baseUrl}/index.json`
-      const response = await fetch(indexUrl)
-      if (response.ok) {
-        registryIndex = await response.json() as RegistryIndex
+      const indexData = await fetchJsonFromRegistry<RegistryIndex>(indexUrl)
+      if (indexData) {
+        registryIndex = indexData
         break
       }
     } catch {
@@ -237,73 +278,62 @@ async function installComponentFromRegistry(
   const folder = type === "registry:lib" ? "lib" : type === "registry:variants" ? "components/variants" : "components/ui"
   
   for (const baseUrl of cdnUrls) {
-    try {
-      const url = `${baseUrl}/${folder}/${name}.json`
-      const response = await fetch(url)
-      
-      if (response.ok) {
-        const component = await response.json() as Component
-        
-        for (const file of component.files) {
-          const fileName = path.basename(file.path)
-          let targetDir: string
-          
-          if (type === "registry:lib") {
-            targetDir = config.libDir
-          } else if (type === "registry:variants") {
-            targetDir = SCHEMA_CONFIG.defaultDirectories.variants
-          } else {
-            targetDir = path.join(config.componentsDir, "ui")
-          }
-          
-          const targetPath = path.join(process.cwd(), targetDir, fileName)
-          await fs.ensureDir(path.dirname(targetPath))
-          await fs.writeFile(targetPath, file.content || "", "utf-8")
-        }
-        return
-      }
-    } catch {
+    const url = `${baseUrl}/${folder}/${name}.json`
+    const component = await fetchJsonFromRegistry<Component>(url)
+    if (!component) {
       continue
     }
+
+    for (const file of component.files) {
+      const fileName = path.basename(file.path)
+      let targetDir: string
+      
+      if (type === "registry:lib") {
+        targetDir = config.libDir
+      } else if (type === "registry:variants") {
+        targetDir = SCHEMA_CONFIG.defaultDirectories.variants
+      } else {
+        targetDir = path.join(config.componentsDir, "ui")
+      }
+      
+      const targetPath = path.join(process.cwd(), targetDir, fileName)
+      await fs.ensureDir(path.dirname(targetPath))
+      await fs.writeFile(targetPath, file.content || "", "utf-8")
+    }
+    return
   }
 }
 
 async function installVariantsIndex(cdnUrls: string[]): Promise<"created" | "updated" | "unchanged" | "skipped"> {
   for (const baseUrl of cdnUrls) {
-    try {
-      // Try to fetch index component from variants
-      const url = `${baseUrl}/components/variants/index.json`
-      const response = await fetch(url)
-      
-      if (response.ok) {
-        const component = await response.json() as Component
+    // Try to fetch index component from variants
+    const url = `${baseUrl}/components/variants/index.json`
+    const component = await fetchJsonFromRegistry<Component>(url)
+    if (!component) {
+      continue
+    }
 
-        for (const file of component.files) {
-          const fileName = path.basename(file.path)
-          if (!fileName.startsWith("index.")) {
-            continue
-          }
+    for (const file of component.files) {
+      const fileName = path.basename(file.path)
+      if (!fileName.startsWith("index.")) {
+        continue
+      }
 
-          const targetDir = SCHEMA_CONFIG.defaultDirectories.variants
-          const targetPath = path.join(process.cwd(), targetDir, fileName)
-          const incomingContent = file.content || ""
-          const exists = await fs.pathExists(targetPath)
+      const targetDir = SCHEMA_CONFIG.defaultDirectories.variants
+      const targetPath = path.join(process.cwd(), targetDir, fileName)
+      const incomingContent = file.content || ""
+      const exists = await fs.pathExists(targetPath)
 
-          if (exists) {
-            const currentContent = await fs.readFile(targetPath, "utf-8")
-            if (currentContent === incomingContent) {
-              return "unchanged"
-            }
-          }
-
-          await fs.ensureDir(path.dirname(targetPath))
-          await fs.writeFile(targetPath, incomingContent, "utf-8")
-          return exists ? "updated" : "created"
+      if (exists) {
+        const currentContent = await fs.readFile(targetPath, "utf-8")
+        if (currentContent === incomingContent) {
+          return "unchanged"
         }
       }
-    } catch {
-      // Fallback: just continue if index doesn't exist
-      continue
+
+      await fs.ensureDir(path.dirname(targetPath))
+      await fs.writeFile(targetPath, incomingContent, "utf-8")
+      return exists ? "updated" : "created"
     }
   }
 

@@ -3,7 +3,7 @@ import { Component } from "../registry/schema.js"
 import { getAllComponents } from "../registry/api.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { logger } from "../utils/logger.js"
-import { SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
+import { CdnResolutionOptions, SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
 
 const LIST_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
 
@@ -11,13 +11,22 @@ interface ListOptions {
   registry?: string
   json?: boolean
   cache?: boolean
+  registryUrl?: string
+  registryVersion?: string
+  strictCdn?: boolean
 }
 
 export async function listCommand(options: ListOptions = {}) {
   const registryType = resolveRegistryType(options.registry)
+  const cdnResolution: CdnResolutionOptions = {
+    registryUrl: options.registryUrl,
+    registryVersion: options.registryVersion,
+    strictCdn: options.strictCdn
+  }
   const requestOptions = {
     excludeTypes: LIST_EXCLUDED_COMPONENT_TYPES,
-    noCache: options.cache === false
+    noCache: options.cache === false,
+    cdn: cdnResolution
   }
 
   try {

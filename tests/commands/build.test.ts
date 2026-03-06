@@ -124,6 +124,46 @@ describe("build command", () => {
     expect(hasVariants).toBe(true)
   })
 
+  it("generates ui8kit.map.json when utility map source exists", async () => {
+    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
+    await fs.ensureDir(path.join(fixture, "src", "lib"))
+
+    const sourcePath = path.join(fixture, "src", "components", "ui", "button.tsx")
+    const componentSource = "export const Button = () => null\n"
+    await fs.writeFile(sourcePath, componentSource)
+
+    const mapSourcePath = path.join(fixture, "src", "lib", "utility-props.map.ts")
+    await fs.writeFile(
+      mapSourcePath,
+      `export default {\n        spacing: ['m-4', 'm-2', 'm-4'],\n        display: ['flex', 'block']\n      }\n`
+    )
+
+    const registryPath = path.join(fixture, "src", "registry.json")
+    await fs.writeJson(registryPath, {
+      items: [
+        {
+          name: "button",
+          type: "registry:ui",
+          dependencies: [],
+          devDependencies: [],
+          files: [{ path: "src/components/ui/button.tsx" }]
+        }
+      ]
+    })
+
+    const outputDir = path.join(fixture, "packages", "registry", "r")
+    const mapOutput = path.join(fixture, "packages", "registry", "ui8kit.map.json")
+
+    await buildCommand(registryPath, { output: outputDir, cwd: fixture })
+
+    const payload = await fs.readJson(mapOutput)
+    expect(payload.version).toBe("1.0.0")
+    expect(payload.map).toEqual({
+      display: ["block", "flex"],
+      spacing: ["m-2", "m-4"]
+    })
+  })
+
   it("resets cache before build", async () => {
     const clearSpy = vi.spyOn(cache, "clearCache").mockResolvedValue(undefined)
     const resetSpy = vi.spyOn(registryApi, "resetCache").mockImplementation(() => {})

@@ -77,4 +77,25 @@ describe("list command", () => {
 
     expect(warnSpy).toHaveBeenCalledWith(CLI_MESSAGES.errors.registryTempUnavailable)
   })
+
+  it("passes explicit CDN options to registry fetch", async () => {
+    const getComponents = vi.spyOn(registryApi, "getAllComponents")
+    getComponents.mockResolvedValue([])
+
+    await listCommand({
+      registryUrl: "https://cdn.example.com/@ui8kit/registry@latest/r",
+      registryVersion: "1.5.1",
+      strictCdn: true
+    })
+
+    expect(getComponents).toHaveBeenCalledWith("ui", {
+      excludeTypes: ["registry:variants", "registry:lib"],
+      noCache: false,
+      cdn: {
+        registryUrl: "https://cdn.example.com/@ui8kit/registry@latest/r",
+        registryVersion: "1.5.1",
+        strictCdn: true
+      }
+    })
+  })
 })

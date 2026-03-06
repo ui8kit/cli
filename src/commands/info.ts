@@ -3,13 +3,15 @@ import os from "os"
 import path from "path"
 import fetch from "node-fetch"
 import chalk from "chalk"
-import { SCHEMA_CONFIG } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, getCdnUrls } from "../utils/schema-config.js"
+import { getRegistryCdnState } from "../registry/api.js"
 import { detectPackageManager } from "../utils/package-manager.js"
 import { getCliVersion } from "../utils/cli-version.js"
 import { getCacheDir } from "../utils/cache.js"
 
 interface InfoOptions {
   json?: boolean
+  cdn?: boolean
 }
 
 export async function infoCommand(options: InfoOptions = {}) {
@@ -19,7 +21,14 @@ export async function infoCommand(options: InfoOptions = {}) {
 
   const configStatus = await readConfigStatus()
   const cache = await readCacheStatus()
-  const cdn = await checkPrimaryCdn()
+  const configOptions = configStatus.found ? {
+    registryUrl: configStatus.config.registryUrl,
+    registryVersion: configStatus.config.registryVersion,
+    strictCdn: configStatus.config.strictCdn
+  } : {}
+  const cdnCandidates = getCdnUrls(SCHEMA_CONFIG.defaultRegistryType, configOptions)
+  const cdn = await checkPrimaryCdn(cdnCandidates)
+  const cdnState = getRegistryCdnState(SCHEMA_CONFIG.defaultRegistryType, { cdn: configOptions })
 
   if (options.json) {
     console.log(JSON.stringify({
@@ -32,7 +41,12 @@ export async function infoCommand(options: InfoOptions = {}) {
       configFound: configStatus.found,
       cache,
       cdn,
-      registry: SCHEMA_CONFIG.defaultRegistry
+      registry: SCHEMA_CONFIG.defaultRegistry,
+      cdnResolution: {
+        overrides: configOptions,
+        resolvedUrls: cdnState.urls,
+        workingCDN: cdnState.workingCDN
+      }
     }, null, 2))
     return
   }
@@ -59,6 +73,20 @@ export async function infoCommand(options: InfoOptions = {}) {
   console.log(`Registry  ${SCHEMA_CONFIG.defaultRegistry}`)
   console.log(`CDN       ${cdn.url} (${cdn.ok ? "ok" : "failed"})`)
   console.log(`Cache     ${cache.path} (${cache.items} items, ${cache.mb} MB)`)
+
+  if (options.cdn) {
+    console.log("")
+    console.log("CDN Resolution")
+    console.log(`  workingCDN: ${cdnState.workingCDN || "not resolved yet in cache"}`
+    )
+    console.log(`  registryUrl override: ${configOptions.registryUrl || "not set"}`)
+    console.log(`  registryVersion: ${configOptions.registryVersion || "not set"}`)
+    console.log(`  strictCdn: ${configOptions.strictCdn ? "enabled" : "disabled"}`)
+    console.log("  resolved order:")
+    cdnState.urls.forEach((item, index) => {
+      console.log(`    ${index + 1}. ${item}`)
+    })
+  }
 }
 
 async function readConfigStatus():
@@ -81,7 +109,10 @@ async function readConfigStatus():
             typescript: config.typescript ?? false,
             globalCss: config.globalCss ?? "src/index.css",
             componentsDir: config.componentsDir ?? SCHEMA_CONFIG.defaultDirectories.components,
-            libDir: config.libDir ?? SCHEMA_CONFIG.defaultDirectories.lib
+            libDir: config.libDir ?? SCHEMA_CONFIG.defaultDirectories.lib,
+            registryUrl: config.registryUrl,
+            registryVersion: config.registryVersion,
+            strictCdn: config.strictCdn
           }
         }
       } catch {
@@ -133,8 +164,11 @@ async function countCacheFiles(dirPath: string): Promise<{ count: number; bytes:
   return { count, bytes: size }
 }
 
-async function checkPrimaryCdn(): Promise<{ url: string; ok: boolean }> {
-  const url = SCHEMA_CONFIG.cdnBaseUrls[0]
+async function checkPrimaryCdn(urls: string[] = SCHEMA_CONFIG.cdnBaseUrls): Promise<{ url: string; ok: boolean }> {
+  const url = urls[0]
+  if (!url) {
+    return { url: "not configured", ok: false }
+  }
   try {
     const response = await fetch(`${url}/index.json`, { method: "HEAD" })
     if (response.status >= 200 && response.status < 400) {

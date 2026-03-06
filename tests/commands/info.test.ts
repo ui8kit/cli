@@ -102,4 +102,31 @@ describe("info command", () => {
     expect(payload.packageManager).toBe("bun")
     expect(payload.config.framework).toBe("vite-react")
   })
+
+  it("prints CDN resolution details when --cdn flag is set", async () => {
+    await fs.writeJson(path.join(fixture, "ui8kit.config.json"), {
+      framework: "vite-react",
+      typescript: true,
+      globalCss: "styles.css",
+      aliases: {},
+      registry: "@ui8kit",
+      componentsDir: "./src/components",
+      libDir: "./src/lib",
+      registryUrl: "https://cdn.example.com/registry/@ui8kit/r",
+      registryVersion: "1.5.1",
+      strictCdn: true
+    })
+
+    vi.mocked(packageManager.detectPackageManager).mockResolvedValue("bun")
+    vi.mocked(fetchModule.default).mockResolvedValue({ status: 200 } as any)
+
+    output.length = 0
+    await infoCommand({ cdn: true })
+
+    const logs = output.join("\n")
+    expect(logs).toContain("CDN Resolution")
+    expect(logs).toContain("registryUrl override: https://cdn.example.com/registry/@ui8kit/r")
+    expect(logs).toContain("registryVersion: 1.5.1")
+    expect(logs).toContain("strictCdn: enabled")
+  })
 })

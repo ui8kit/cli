@@ -35,6 +35,9 @@ Options:
 
 - `-y, --yes` Skip prompts and use defaults
 - `-r, --registry <type>` Registry type (default: `ui`)
+- `--registry-url <url>` Override registry CDN base URL
+- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
+- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
 
 When running without `--yes`, `init` now asks for:
 
@@ -74,6 +77,9 @@ Options:
 - `--dry-run` Show planned actions without writing files
 - `--retry` Enable retry logic for unstable connections
 - `--no-cache` (root option) bypasses cache for this run.
+- `--registry-url <url>` Override registry CDN base URL
+- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
+- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
 
 ### `list`
 
@@ -90,6 +96,9 @@ Options:
 
 - `-r, --registry <type>` Registry type (default: `ui`)
 - `--json` Print JSON output instead of table
+- `--registry-url <url>` Override registry CDN base URL
+- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
+- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
 
 ### `diff`
 
@@ -107,6 +116,9 @@ Options:
 - `[component]` Optional component name
 - `-r, --registry <type>` Registry type (default: `ui`)
 - `--json` Print diff summary as JSON
+- `--registry-url <url>` Override registry CDN base URL
+- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
+- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
 
 Examples:
 
@@ -134,9 +146,60 @@ bunx ui8kit@latest --no-cache info
 Use `--no-cache` in any command to skip reading cached registry data.
 
 ```bash
+bunx ui8kit@latest info --cdn
+```
+
+Use `--cdn` to print resolved CDN URL order, active cache override, and registry override settings.
+
+```bash
 bunx ui8kit@latest --no-cache diff
 bunx ui8kit@latest --no-cache list --json
 ```
+
+### `registry` (utility)
+
+Commands to maintain local CLI artifacts.
+
+```bash
+bunx ui8kit@latest registry clean
+bunx ui8kit@latest registry clean --all --dry-run
+```
+
+### `reset`
+
+Remove local UI8Kit-generated project state for a full clean re-install.
+
+```bash
+bunx ui8kit@latest reset
+bunx ui8kit@latest reset --yes
+bunx ui8kit@latest reset --dry-run
+```
+
+Options:
+
+- `--dry-run` Show what will be removed
+- `-y, --yes` Skip prompts
+- `-f, --force` Skip confirmation prompt
+- `--with-cache` Also clear local cache
+
+Reset removes:
+
+- `ui8kit.config.json` (project config)
+- `src/registry.json` manifest if present
+- Component install directories (`src/components`, `src/lib`, `src/variants`, `src/layouts`, `src/blocks`)
+- Generated registry artifacts (`packages/registry/...`, `ui8kit.map.json`)
+
+### `get-cdn` (diagnostics utility)
+
+Check registry availability for each CDN source and compare payload metadata without touching installed project files.
+
+```bash
+npm run get-cdn
+npm run get-cdn -- --url https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r
+npm run get-cdn -- --path components/variants/index.json --url https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r
+```
+
+Use this before `init`/`add` when you suspect CDN propagation lag, stale `@latest` caches, or provider-specific outages.
 
 ### `scan`
 
@@ -167,6 +230,21 @@ Options:
 
 - `[registry]` Path to registry JSON (default: `./src/registry.json`)
 - `-o, --output <path>` Output directory (default: `./packages/registry/r`)
+
+The build command also generates `packages/registry/ui8kit.map.json` when `src/lib/utility-props.map.ts` is available.
+
+Generated map shape:
+
+```json
+{
+  "version": "1.0.0",
+  "generatedAt": "2026-03-06T12:00:00.000Z",
+  "map": {
+    "display": ["block", "flex"],
+    "spacing": ["m-2", "m-4"]
+  }
+}
+```
 
 ### Global options
 

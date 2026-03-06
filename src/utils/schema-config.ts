@@ -29,8 +29,8 @@ export const SCHEMA_CONFIG = {
   
   // CDN base URLs (registryName will be substituted)
   cdnBaseUrls: [
-    "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
-    "https://unpkg.com/@ui8kit/registry@latest/r", 
+    "https://unpkg.com/@ui8kit/registry@latest/r",
+    "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r", 
     "https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r"
   ] as const,
   
@@ -88,6 +88,8 @@ export const SCHEMA_CONFIG = {
     registryHomepage: "Registry homepage URL",
     registryType: "Registry type (e.g., ui)",
     registryVersion: "Registry version",
+    registryUrl: "Explicit registry URL override",
+    strictCdn: "Disable fallback to built-in CDN URLs",
     lastUpdated: "Last update timestamp",
     categories: "Available component categories",
     components: "Component metadata for quick lookup",
@@ -109,9 +111,51 @@ export const TYPE_TO_FOLDER = {
 } as const
 
 // Helper functions to generate URLs dynamically
-export function getCdnUrls(_registryType: RegistryType): string[] {
-  // Use base URLs directly; paths are relative to /r root
-  return [...SCHEMA_CONFIG.cdnBaseUrls]
+export interface CdnResolutionOptions {
+  registryUrl?: string
+  registryVersion?: string
+  strictCdn?: boolean
+}
+
+function normalizeCdnVersion(version?: string): string {
+  if (!version) {
+    return ""
+  }
+  const normalized = version.trim()
+  if (!normalized) {
+    return ""
+  }
+  return normalized.startsWith("@") ? normalized : `@${normalized}`
+}
+
+function applyRegistryVersion(baseUrl: string, version?: string): string {
+  const normalizedVersion = normalizeCdnVersion(version)
+  if (!normalizedVersion) {
+    return baseUrl
+  }
+  return baseUrl.replace(/@latest(?=\/|$)/g, normalizedVersion)
+}
+
+export function getCdnUrls(_registryType: RegistryType, options: CdnResolutionOptions = {}): string[] {
+  const baseUrls = SCHEMA_CONFIG.cdnBaseUrls.map(url => applyRegistryVersion(url, options.registryVersion))
+  const resolvedUrls: string[] = []
+  const explicitUrl = options.registryUrl
+    ? normalizeCdnBaseUrl(applyRegistryVersion(normalizeCdnBaseUrl(options.registryUrl), options.registryVersion))
+    : ""
+
+  if (explicitUrl) {
+    resolvedUrls.push(explicitUrl)
+  }
+
+  if (!options.strictCdn || !explicitUrl) {
+    resolvedUrls.push(...baseUrls)
+  }
+
+  return [...new Set(resolvedUrls)]
+}
+
+function normalizeCdnBaseUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "")
 }
 
 export function getInstallPath(registryType: RegistryType, componentType: string): string {

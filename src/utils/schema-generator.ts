@@ -76,6 +76,19 @@ export function generateConfigSchema() {
         "type": "string",
         "default": SCHEMA_CONFIG.defaultDirectories.lib,
         "description": SCHEMA_CONFIG.fieldDescriptions.libDir
+      },
+      "registryUrl": {
+        "type": "string",
+        "description": SCHEMA_CONFIG.fieldDescriptions.registryUrl
+      },
+      "registryVersion": {
+        "type": "string",
+        "description": SCHEMA_CONFIG.fieldDescriptions.registryVersion
+      },
+      "strictCdn": {
+        "type": "boolean",
+        "default": false,
+        "description": SCHEMA_CONFIG.fieldDescriptions.strictCdn
       }
     },
     "required": ["framework"],
