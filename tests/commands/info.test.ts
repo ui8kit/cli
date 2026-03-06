@@ -77,4 +77,29 @@ describe("info command", () => {
     expect(logs).toContain("PM      npm")
     expect(logs).toContain(`CDN       ${SCHEMA_CONFIG.cdnBaseUrls[0]} (failed)`)
   })
+
+  it("outputs JSON when requested", async () => {
+    await fs.writeJson(path.join(fixture, "ui8kit.config.json"), {
+      framework: "vite-react",
+      typescript: true,
+      globalCss: "styles.css",
+      aliases: {},
+      registry: "@ui8kit",
+      componentsDir: "./src/components",
+      libDir: "./src/lib"
+    })
+
+    vi.mocked(packageManager.detectPackageManager).mockResolvedValue("bun")
+    vi.mocked(fetchModule.default).mockResolvedValue({ status: 200 } as any)
+
+    output.length = 0
+    await infoCommand({ json: true })
+
+    const payload = JSON.parse(output[0])
+    expect(payload.version).toBeTruthy()
+    expect(payload.configFound).toBe(true)
+    expect(payload.node).toBeTruthy()
+    expect(payload.packageManager).toBe("bun")
+    expect(payload.config.framework).toBe("vite-react")
+  })
 })

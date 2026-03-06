@@ -8,7 +8,11 @@ import { detectPackageManager } from "../utils/package-manager.js"
 import { getCliVersion } from "../utils/cli-version.js"
 import { getCacheDir } from "../utils/cache.js"
 
-export async function infoCommand() {
+interface InfoOptions {
+  json?: boolean
+}
+
+export async function infoCommand(options: InfoOptions = {}) {
   const version = getCliVersion()
   const pm = await detectPackageManager()
   const cwd = process.cwd()
@@ -16,6 +20,22 @@ export async function infoCommand() {
   const configStatus = await readConfigStatus()
   const cache = await readCacheStatus()
   const cdn = await checkPrimaryCdn()
+
+  if (options.json) {
+    console.log(JSON.stringify({
+      version,
+      node: process.version,
+      os: `${os.platform()} ${os.arch()}`,
+      packageManager: pm,
+      cwd,
+      config: configStatus.config,
+      configFound: configStatus.found,
+      cache,
+      cdn,
+      registry: SCHEMA_CONFIG.defaultRegistry
+    }, null, 2))
+    return
+  }
 
   console.log(`ui8kit v${version}`)
   console.log(`Node    ${process.version}`)

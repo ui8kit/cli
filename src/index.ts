@@ -49,6 +49,7 @@ program
 program
   .command("info")
   .description("Show environment and config diagnostics")
+  .option("--json", "Output diagnostics as JSON")
   .action(infoCommand)
 
 program
