@@ -331,9 +331,20 @@ function extractDescription(content: string): string {
 }
 
 function hasValidExports(content: string): boolean {
-  // Check for export statements
-  return /export\s+(default\s+)?(function|const|class|interface|type)/m.test(content) ||
-         /export\s*\{/.test(content)
+  const sourceFile = ts.createSourceFile("index.ts", content, ts.ScriptTarget.Latest, true)
+  let hasExports = false
+
+  function visit(node: ts.Node) {
+    if (ts.isExportDeclaration(node) || ts.isExportAssignment(node) || hasExportModifier(node)) {
+      hasExports = true
+      return
+    }
+
+    ts.forEachChild(node, visit)
+  }
+
+  visit(sourceFile)
+  return hasExports
 }
 
 async function analyzeComponentDependencies(files: ComponentFile[], cwd: string): Promise<{

@@ -2,11 +2,14 @@ import fs from "fs-extra"
 import path from "path"
 import chalk from "chalk"
 import ora from "ora"
+import * as ts from "typescript"
 import { registrySchema, registryItemSchema } from "../registry/build-schema.js"
+import { resetCache } from "../registry/api.js"
 import { generateConfigSchema, generateRegistrySchema, generateRegistryItemSchema } from "../utils/schema-generator.js"
 import { TYPE_TO_FOLDER, SCHEMA_CONFIG, isExternalDependency } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { handleError } from "../utils/errors.js"
+import { clearCache } from "../utils/cache.js"
 
 interface BuildOptions {
   cwd: string
@@ -27,6 +30,9 @@ export async function buildCommand(
   console.log(chalk.blue(CLI_MESSAGES.info.building))
   
   try {
+    await clearCache()
+    resetCache()
+
     // Read registry.json
     const registryContent = await fs.readFile(buildOptions.registryFile, "utf-8")
     const registryData = JSON.parse(registryContent)
@@ -166,8 +172,8 @@ async function ensureVariantsIndexItem(registry: any, cwd: string): Promise<void
   const exportedModules = extractExportedModules(sourceContent)
 
   const indexItem = {
-    name: "index",
     type: "registry:variants",
+    name: "index",
     description: exportedModules.length > 0
       ? `Variant exports: ${exportedModules.join(", ")}`
       : "Variants export index",
@@ -182,7 +188,7 @@ async function ensureVariantsIndexItem(registry: any, cwd: string): Promise<void
 
   const items = Array.isArray(registry.items) ? registry.items : []
   const existingIndexIdx = items.findIndex((item: any) =>
-    item && item.name === "index"
+    item && item.type === indexItem.type && item.name === indexItem.name
   )
 
   if (existingIndexIdx >= 0) {
@@ -213,15 +219,23 @@ function extractExportedModules(content: string): string[] {
 
 function extractFileDependencies(content: string): string[] {
   const dependencies = new Set<string>()
-  const importRegex = /import\s+[^;\n]+?from\s+['"]([^'"]+)['"]/g
+  const sourceFile = ts.createSourceFile("index.ts", content, ts.ScriptTarget.Latest, true)
 
-  let match: RegExpExecArray | null
-  while ((match = importRegex.exec(content)) !== null) {
-    const moduleName = match[1]
-    if (isExternalDependency(moduleName)) {
-      dependencies.add(moduleName)
+  function visit(node: ts.Node) {
+    if (ts.isImportDeclaration(node)) {
+      const moduleSpecifier = node.moduleSpecifier
+      if (ts.isStringLiteral(moduleSpecifier)) {
+        const moduleName = moduleSpecifier.text
+        if (isExternalDependency(moduleName)) {
+          dependencies.add(moduleName)
+        }
+      }
     }
+
+    ts.forEachChild(node, visit)
   }
+
+  visit(sourceFile)
 
   return [...dependencies]
 }
