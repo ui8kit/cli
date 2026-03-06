@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0] - 2026-03-06
+## [1.3.5] - 2026-03-06
 
 ### Added
 - Added `info --json` output mode (`src/commands/info.ts`, `src/index.ts`) for machine-readable diagnostics.

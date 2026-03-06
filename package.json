@@ -1,17 +1,42 @@
 {
   "name": "ui8kit",
-  "version": "1.3.0",
+  "version": "1.3.5",
   "description": "A CLI for adding UI components to your Vite React projects (UI8Kit core/blocks registries)",
   "type": "module",
   "bin": {
     "ui8kit": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ui8kit/cli.git",
+    "directory": "."
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "README.md",
     "LICENSE"
   ],
+  "keywords": [
+    "cli",
+    "ui",
+    "components",
+    "vite",
+    "react",
+    "shadcn",
+    "tailwind",
+    "ui8kit",
+    "core"
+  ],
+  "author": {
+    "name": "ui8kit",
+    "url": "https://github.com/ui8kit"
+  },
+  "license": "MIT",
+  "homepage": "https://ui.buildy.tw",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -42,28 +67,6 @@
     "tsup": "^7.2.0",
     "vitest": "^4.0.0"
   },
-  "keywords": [
-    "cli",
-    "ui",
-    "components",
-    "vite",
-    "react",
-    "shadcn",
-    "tailwind",
-    "ui8kit",
-    "core"
-  ],
-  "author": {
-    "name": "ui8kit",
-    "url": "https://github.com/ui8kit"
-  },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ui8kit/cli.git",
-    "directory": "packages/cli"
-  },
-  "homepage": "https://ui.buildy.tw",
   "engines": {
     "node": ">=18.0.0"
   }
