@@ -95,6 +95,61 @@ Acceptance criteria:
 - After reset, `init` and `add` can be executed again from a clean state without manual cleanup.
 - No user code is removed beyond explicitly intended `ui8kit` state.
 
+---
+
+### P4 — Add configurable CDN URL strategy for init/build/diagnostics
+- [ ] Add explicit CDN configuration in project config
+  - Extend `ui8kit.config.json` schema with `registryUrl` (single base URL) and optional `registryVersion` / `registryUrls` overrides.
+  - Add validation and graceful fallback to existing `cdnBaseUrls` defaults.
+  - Document precedence: explicit CLI flag > project config > built-in defaults.
+- [ ] Define CDN provider priority for defaults
+  - Reorder default `cdnBaseUrls` to try `https://unpkg.com/@ui8kit/registry@latest/r` first, then `https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r`.
+  - Keep GitHub fallback as a last resort.
+  - Add rationale in config docs that unpkg normalizes `@latest` to the latest concrete version automatically.
+- [ ] Add CLI option for one-off CDN override
+  - Add `--registry-url` and/or `--registry-version` option to `init` (and optionally `add`, `list`, `diff`) to force runtime CDN source.
+  - Accept either full base URL (`https://cdn.jsdelivr.net/npm/@ui8kit/registry@1.5.1/r`) or versioned shortcut (`@latest`/`@1.5.1`).
+  - When a version is passed (`--registry-version 1.5.1` or config value), replace `@latest` with `@1.5.1` in every built-in CDN base URL before fetch.
+  - Ensure `installVariantsIndex`/`installCoreFiles` use resolved CDN URL order consistently.
+- [ ] Add hard override mode for registry resolution
+  - If URL is explicitly configured, always prioritize it when loading `index.json`, `components/variants/index.json`, and variant/lib components.
+  - Keep fallback order to existing CDN providers only when `--strict-cdn`/`ui8kit.config` is not enabled.
+- [ ] Add diagnostics helper command
+  - Add `ui8kit info --cdn`/or dedicated command output that prints resolved CDN URL order and active overrides.
+- [ ] Add integration tests for resolution order
+  - Test config-driven override is used for index fetch and variant index sync.
+  - Test CLI override flag bypasses `latest` defaults and respects explicit URL.
+  - Add failure test that logs actionable message and falls back to next provider when non-strict mode is set.
+- [ ] Update docs and release notes
+  - Add a section to README: how to pin CDN URL/version for `latest` cache sensitivity and deterministic installs.
+  - Add troubleshooting note for stale `@latest` behavior and cache invalidation.
+
+Acceptance criteria:
+- `init` can be run repeatedly and pulls variants from forced CDN URL.
+- `@latest` behavior remains default when no override is provided, with `unpkg` checked before `jsdelivr`.
+- Explicit URL/Version overrides are persisted in `ui8kit.config.json` and can be used in CI pipelines.
+
+---
+
+### P5 — Add script to validate current CDN payloads from local repo
+- [ ] Add `./scripts/get-cdn.js` script
+  - Discover `cdnBaseUrls` from source config files (at least `src/utils/schema-config.ts`).
+  - Print resolved URLs for:
+    - `r/components/variants/index.json`
+    - `r/components/ui/Button.json`
+    - (and optional extras passed via CLI args).
+  - Fetch each URL and print HTTP status + short content summary (status/size/etag/last-modified).
+- [ ] Add script usage docs in README
+  - Include command examples for checking `latest` and version-pinned URLs.
+  - Explain how to use it before `ui8kit init` if CDN appears stale.
+- [ ] Add tests for script parsing and URL assembly
+  - Unit-test extraction of `cdnBaseUrls` from representative config content.
+  - Add fixture test for malformed / commented URL blocks.
+
+Acceptance criteria:
+- One command can verify CDN payload freshness without running full CLI.
+- The script can force-check a versioned URL and report divergence from `@latest`.
+
 ## Notes
 - Keep changes limited to CLI and build pipeline safety first.
 - Pair each task with at least one integration test to prevent regressions.
