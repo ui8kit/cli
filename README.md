@@ -38,13 +38,16 @@ Options:
 - `--registry-url <url>` Override registry CDN base URL
 - `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
 - `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
+- `--import-style <alias|package>` Choose installed component import style (`alias` or package barrel `@ui8kit/core`; default: `alias`)
 
 When running without `--yes`, `init` now asks for:
 
 - Global CSS file path (default: `src/index.css`)
 - Import alias for components (default: `@/components`)
+- Import style for installed components (`alias` or `package`)
 
 `typescript` is always set to `true` and `framework` is fixed to `vite-react`.
+`init` now writes configuration and core utilities/variants. Empty category folders are created during bulk install (`add --all`).
 
 ### `add`
 
@@ -75,6 +78,13 @@ Options:
 - `-f, --force` Overwrite existing files
 - `-r, --registry <type>` Registry type (default: `ui`)
 - `--dry-run` Show planned actions without writing files
+- `--all` also creates base install directories before fetching and writing components:
+  - `src/lib`
+  - `src/components`
+  - `src/components/ui`
+  - `src/blocks`
+  - `src/layouts`
+  - `src/variants`
 - `--retry` Enable retry logic for unstable connections
 - `--no-cache` (root option) bypasses cache for this run.
 - `--registry-url <url>` Override registry CDN base URL

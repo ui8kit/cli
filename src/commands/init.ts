@@ -3,7 +3,7 @@ import prompts from "prompts"
 import ora, { type Ora } from "ora"
 import { isViteProject, hasReact, findConfig, saveConfig, ensureDir } from "../utils/project.js"
 import { Config, Component } from "../registry/schema.js"
-import { SCHEMA_CONFIG, getCdnUrls, type RegistryType, type CdnResolutionOptions } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, getCdnUrls, type RegistryType, type CdnResolutionOptions, type ImportStyle } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { installDependencies } from "../utils/package-manager.js"
 import path from "path"
@@ -18,6 +18,7 @@ interface InitOptions {
   registryUrl?: string
   registryVersion?: string
   strictCdn?: boolean
+  importStyle?: ImportStyle
 }
 
 export interface InitConfigOptions {
@@ -28,6 +29,7 @@ export interface InitConfigOptions {
   registryUrl?: string
   registryVersion?: string
   strictCdn?: boolean
+  importStyle?: ImportStyle
 }
 
 const INIT_FETCH_TIMEOUT_MS = 10_000
@@ -49,11 +51,16 @@ async function fetchJsonFromRegistry<T>(url: string): Promise<T | null> {
   }
 }
 
+function resolveImportStyle(rawImportStyle?: ImportStyle): ImportStyle {
+  return rawImportStyle === "package" ? "package" : "alias"
+}
+
 export function buildInitConfig(options: InitConfigOptions): Config {
   const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
   const aliases = SCHEMA_CONFIG.defaultAliases
   const globalCss = options.globalCss || "src/index.css"
   const aliasComponents = options.aliasComponents?.trim() || "@/components"
+  const importStyle = resolveImportStyle(options.importStyle)
 
   if (options.yes) {
     return {
@@ -67,7 +74,8 @@ export function buildInitConfig(options: InitConfigOptions): Config {
       libDir: SCHEMA_CONFIG.defaultDirectories.lib,
       registryUrl: options.registryUrl,
       registryVersion: options.registryVersion,
-      strictCdn: options.strictCdn
+      strictCdn: options.strictCdn,
+      importStyle
     }
   }
 
@@ -82,7 +90,8 @@ export function buildInitConfig(options: InitConfigOptions): Config {
     libDir: SCHEMA_CONFIG.defaultDirectories.lib,
     registryUrl: options.registryUrl,
     registryVersion: options.registryVersion,
-    strictCdn: options.strictCdn
+    strictCdn: options.strictCdn,
+    importStyle
   }
 }
 
@@ -130,7 +139,7 @@ export async function initCommand(options: InitOptions) {
   let config: Config
   
   if (options.yes) {
-      config = buildInitConfig({ yes: true, registry: registryName, ...cdnOptions })
+    config = buildInitConfig({ yes: true, registry: registryName, ...cdnOptions, importStyle: options.importStyle })
   } else {
     const responses = await prompts([
       {
@@ -144,17 +153,29 @@ export async function initCommand(options: InitOptions) {
         name: "aliasComponents",
         message: CLI_MESSAGES.prompts.aliasComponents,
         initial: "@/components"
+      },
+      {
+        type: "select",
+        name: "importStyle",
+        message: "Import style for installed components",
+        choices: [
+          { title: "Alias imports (recommended)", value: "alias" as ImportStyle },
+          { title: "Package imports (@ui8kit/core)", value: "package" as ImportStyle }
+        ],
+        initial: 0
       }
     ])
 
     const aliasComponents = responses.aliasComponents?.trim() || "@/components"
     const globalCss = responses.globalCss || "src/index.css"
+    const importStyle = resolveImportStyle(responses.importStyle)
     config = buildInitConfig({
       yes: false,
       registry: registryName,
       globalCss,
-          aliasComponents,
-          ...cdnOptions
+      aliasComponents,
+      importStyle,
+      ...cdnOptions
     })
   }
   
@@ -164,25 +185,11 @@ export async function initCommand(options: InitOptions) {
     // Save configuration at project root
     await saveConfig(config)
     
-    // Create src-based directory structure
-    await ensureDir(config.libDir)
-    await ensureDir(config.componentsDir)
-    await ensureDir(path.join(config.componentsDir, "ui")) // src/components/ui
-    await ensureDir(SCHEMA_CONFIG.defaultDirectories.blocks)
-    await ensureDir(SCHEMA_CONFIG.defaultDirectories.layouts)
-    await ensureDir(SCHEMA_CONFIG.defaultDirectories.variants)
-    
     spinner.text = "Installing core utilities and variants..."
     
     // Install utils and all variants from registry
     await installCoreFiles(registryName as RegistryType, config, spinner, cdnOptions)
 
-    // Install packages required by src/lib/utils.ts (cn helper).
-    spinner.text = "Installing core dependencies..."
-    await installDependencies(["clsx", "tailwind-merge"], {
-      useSpinner: false
-    })
-    
     spinner.succeed(CLI_MESSAGES.success.initialized(registryName))
     
     logger.success(`\n✅ ${CLI_MESSAGES.success.setupComplete(registryName)}`)
@@ -207,7 +214,134 @@ interface RegistryIndex {
   components: Array<{ name: string; type: string }>
 }
 
-async function installCoreFiles(registryType: RegistryType, config: Config, spinner: Ora, cdnResolution: CdnResolutionOptions = {}): Promise<void> {
+interface CoreComponentRef {
+  name: string
+  type: string
+}
+
+interface CoreComponentDescriptor extends CoreComponentRef {
+  component: Component
+}
+
+function sortCoreDependencies(descriptors: CoreComponentDescriptor[]): CoreComponentDescriptor[] {
+  const itemByTypeAndName = new Map<string, CoreComponentDescriptor>()
+  for (const item of descriptors) {
+    itemByTypeAndName.set(`${item.type}:${item.name}`, item)
+  }
+
+  const findDependencyByName = (name: string): CoreComponentDescriptor | undefined => {
+    const dependencyByLib = itemByTypeAndName.get(`registry:lib:${name}`)
+    if (dependencyByLib) {
+      return dependencyByLib
+    }
+    return descriptors.find(item => item.name === name)
+  }
+
+  const indegrees = new Map<string, number>()
+  const graph = new Map<string, Set<string>>()
+  const queue: string[] = []
+
+  for (const item of descriptors) {
+    const key = `${item.type}:${item.name}`
+    indegrees.set(key, 0)
+    graph.set(key, new Set())
+  }
+
+  for (const item of descriptors) {
+    const itemKey = `${item.type}:${item.name}`
+    for (const registryDep of item.component.registryDependencies ?? []) {
+      const targetName = registryDep.toLowerCase()
+      const dependency = findDependencyByName(targetName)
+      if (!dependency) {
+        continue
+      }
+      const dependencyKey = `${dependency.type}:${dependency.name}`
+      if (dependencyKey === itemKey) {
+        continue
+      }
+      graph.get(dependencyKey)?.add(itemKey)
+      indegrees.set(itemKey, (indegrees.get(itemKey) ?? 0) + 1)
+    }
+  }
+
+  for (const [key, inDegree] of indegrees.entries()) {
+    if (inDegree === 0) {
+      queue.push(key)
+    }
+  }
+
+  const result: CoreComponentDescriptor[] = []
+  while (queue.length > 0) {
+    const key = queue.shift()
+    if (!key) break
+    const item = itemByTypeAndName.get(key)
+    if (!item) continue
+
+    result.push(item)
+    for (const dependent of graph.get(key) ?? []) {
+      const nextDegree = Math.max((indegrees.get(dependent) ?? 1) - 1, 0)
+      indegrees.set(dependent, nextDegree)
+      if (nextDegree === 0) {
+        queue.push(dependent)
+      }
+    }
+  }
+
+  if (result.length === descriptors.length) {
+    return result
+  }
+
+  // Fallback to insertion order for unresolved/cyclic dependencies
+  for (const item of descriptors) {
+    if (!result.includes(item)) {
+      result.push(item)
+    }
+  }
+  return result
+}
+
+async function fetchCoreComponent(
+  name: string,
+  type: string,
+  cdnUrls: string[]
+): Promise<Component | null> {
+  const folder = type === "registry:lib" ? "lib" : type === "registry:variants" ? "components/variants" : "components/ui"
+  for (const baseUrl of cdnUrls) {
+    const url = `${baseUrl}/${folder}/${name}.json`
+    const component = await fetchJsonFromRegistry<Component>(url)
+    if (component) {
+      return component
+    }
+  }
+  return null
+}
+
+function resolveComponentTargetDir(type: string, config: Config): string {
+  if (type === "registry:lib") {
+    return config.libDir
+  }
+  if (type === "registry:variants") {
+    return SCHEMA_CONFIG.defaultDirectories.variants
+  }
+  return path.join(config.componentsDir, "ui")
+}
+
+async function writeComponentFromDescriptor(component: Component, type: string, config: Config): Promise<void> {
+  for (const file of component.files) {
+    const fileName = path.basename(file.path)
+    const targetDir = resolveComponentTargetDir(type, config)
+    const targetPath = path.join(process.cwd(), targetDir, fileName)
+    await fs.ensureDir(path.dirname(targetPath))
+    await fs.writeFile(targetPath, file.content || "", "utf-8")
+  }
+}
+
+async function installCoreFiles(
+  registryType: RegistryType,
+  config: Config,
+  spinner: Ora,
+  cdnResolution: CdnResolutionOptions = {}
+): Promise<void> {
   const cdnUrls = getCdnUrls(registryType, {
     registryUrl: cdnResolution.registryUrl,
     registryVersion: cdnResolution.registryVersion,
@@ -240,17 +374,53 @@ async function installCoreFiles(registryType: RegistryType, config: Config, spin
   // Filter variants and lib items
   const variantItems = registryIndex.components.filter(c => c.type === "registry:variants")
   const libItems = registryIndex.components.filter(c => c.type === "registry:lib")
-  
-  // Install utils (lib items)
-  for (const item of libItems) {
-    spinner.text = `Installing ${item.name}...`
-    await installComponentFromRegistry(item.name, "registry:lib", cdnUrls, config)
+  const coreItems: CoreComponentRef[] = [
+    ...libItems.map(item => ({ name: item.name, type: "registry:lib" })),
+    ...variantItems.map(item => ({ name: item.name, type: "registry:variants" }))
+  ]
+
+  if (coreItems.length === 0) {
+    spinner.text = "⚠️  Registry index has no core components; creating local utils..."
+    await createUtilsFile(config.libDir, config.typescript)
+    return
   }
-  
-  // Install all variants
-  for (const item of variantItems) {
-    spinner.text = `Installing variant: ${item.name}...`
-    await installComponentFromRegistry(item.name, "registry:variants", cdnUrls, config)
+
+  const loadedComponents: CoreComponentDescriptor[] = []
+  const coreDependencies = new Set<string>()
+  for (const item of coreItems) {
+    spinner.text = `Fetching ${item.name}...`
+    const component = await fetchCoreComponent(item.name, item.type, cdnUrls)
+    if (!component) {
+      continue
+    }
+    loadedComponents.push({
+      ...item,
+      component: {
+        name: component.name || item.name,
+        type: item.type,
+        files: component.files,
+        dependencies: component.dependencies ?? [],
+        devDependencies: component.devDependencies ?? [],
+        registryDependencies: component.registryDependencies ?? [],
+        description: component.description
+      }
+    })
+    for (const dep of component.dependencies ?? []) {
+      coreDependencies.add(dep)
+    }
+  }
+
+  const orderedCoreComponents = sortCoreDependencies(loadedComponents)
+  for (const descriptor of orderedCoreComponents) {
+    spinner.text = `Installing ${descriptor.name}...`
+    await writeComponentFromDescriptor(descriptor.component, descriptor.type, config)
+  }
+
+  if (coreDependencies.size > 0) {
+    spinner.text = "Installing core dependencies..."
+    await installDependencies(Array.from(coreDependencies), {
+      useSpinner: false
+    })
   }
   
   // Install variants/index.ts
@@ -266,42 +436,7 @@ async function installCoreFiles(registryType: RegistryType, config: Config, spin
     spinner.text = "variants/index.ts not found in registry (skipped)"
   }
   
-  spinner.text = `✅ Installed ${libItems.length} utilities and ${variantItems.length} variants`
-}
-
-async function installComponentFromRegistry(
-  name: string, 
-  type: string, 
-  cdnUrls: string[], 
-  config: Config
-): Promise<void> {
-  const folder = type === "registry:lib" ? "lib" : type === "registry:variants" ? "components/variants" : "components/ui"
-  
-  for (const baseUrl of cdnUrls) {
-    const url = `${baseUrl}/${folder}/${name}.json`
-    const component = await fetchJsonFromRegistry<Component>(url)
-    if (!component) {
-      continue
-    }
-
-    for (const file of component.files) {
-      const fileName = path.basename(file.path)
-      let targetDir: string
-      
-      if (type === "registry:lib") {
-        targetDir = config.libDir
-      } else if (type === "registry:variants") {
-        targetDir = SCHEMA_CONFIG.defaultDirectories.variants
-      } else {
-        targetDir = path.join(config.componentsDir, "ui")
-      }
-      
-      const targetPath = path.join(process.cwd(), targetDir, fileName)
-      await fs.ensureDir(path.dirname(targetPath))
-      await fs.writeFile(targetPath, file.content || "", "utf-8")
-    }
-    return
-  }
+  spinner.text = `✅ Installed ${loadedComponents.length} core components`
 }
 
 async function installVariantsIndex(cdnUrls: string[]): Promise<"created" | "updated" | "unchanged" | "skipped"> {

@@ -90,14 +90,23 @@ export const SCHEMA_CONFIG = {
     registryVersion: "Registry version",
     registryUrl: "Explicit registry URL override",
     strictCdn: "Disable fallback to built-in CDN URLs",
+    importStyle: "How component imports are rewritten: alias or package",
     lastUpdated: "Last update timestamp",
     categories: "Available component categories",
     components: "Component metadata for quick lookup",
     items: "Full component definitions",
+  } as const,
+  packageAliases: {
+    core: "@ui8kit/core"
+  } as const,
+  importStyle: {
+    alias: "alias",
+    package: "package"
   } as const
 } as const
 
 export type RegistryType = typeof SCHEMA_CONFIG.registryTypes[number]
+export type ImportStyle = (typeof SCHEMA_CONFIG.importStyle)[keyof typeof SCHEMA_CONFIG.importStyle]
 
 // Map component types to their target installation folders (on user's project side)
 export const TYPE_TO_FOLDER = {

@@ -88,6 +88,7 @@ program
   .option("--registry-url <url>", "Override CDN registry base URL")
   .option("--registry-version <version>", "Override registry @latest version")
   .option("--strict-cdn", "Disable fallback CDN providers when override is provided")
+  .option("--import-style <alias|package>", "Rewrite imports as alias paths or @ui8kit/core package imports", "alias")
   .action(initCommand)
 
 program

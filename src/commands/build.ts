@@ -131,6 +131,8 @@ async function createIndexFile(registry: any, outputDir: string) {
       type: item.type,
       title: item.title,
       description: item.description,
+        dependencies: item.dependencies ?? [],
+        registryDependencies: item.registryDependencies ?? [],
     })),
     categories: SCHEMA_CONFIG.componentCategories,
     version: "1.0.0",

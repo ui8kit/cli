@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.1] - 2026-03-06
+
+### Added
+- Added import style configuration for component installation:
+  - `--import-style` command option in `init` (`alias` default, `package` optional).
+  - Support for package-style rewrites (`@ui8kit/core`) when `importStyle` is set to `package`.
+- Added automatic dependency metadata flow from registry artifacts into installation paths (npm deps and registry dependencies), including `--all` and nested component installs.
+
+### Changed
+- Moved creation of base project directories from `init` to bulk install flow in `add --all`.
+- `init` now focuses on config/core bootstrap and does not pre-create empty `blocks`, `layouts`, or `variants` directories.
+- `add --all` now ensures all required install directories exist before writing files.
+
+### Fixed
+- Prevented unnecessary empty directories from appearing after `init` when only targeted component installs are required.
+- Improved `--all` install consistency by normalizing install directory preparation before component writes.
+
 ## [1.3.8] - 2026-03-06
 
 ### Added

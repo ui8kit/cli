@@ -158,7 +158,7 @@ async function compareComponentFiles(
     return [{ path: installed.filePath, changed: false }]
   }
 
-  const remoteContent = applyTransforms(remoteCandidate.content, config.aliases)
+  const remoteContent = applyTransforms(remoteCandidate.content, config.aliases, config.importStyle || "alias")
   const changed = hasDiff(localContent, remoteContent)
   return changed
     ? [{

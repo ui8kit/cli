@@ -66,6 +66,42 @@ describe("build command", () => {
     expect(index.components[0].name).toBe("button")
   })
 
+  it("includes dependencies metadata in index entries", async () => {
+    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
+    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+    await fs.writeFile(path.join(fixture, "src", "components", "ui", "card.tsx"), "export const Card = () => null\n")
+
+    const registryPath = path.join(fixture, "src", "registry.json")
+    await fs.writeJson(registryPath, {
+      items: [
+        {
+          name: "button",
+          type: "registry:ui",
+          dependencies: ["clsx"],
+          devDependencies: [],
+          registryDependencies: ["card"],
+          files: [{ path: "src/components/ui/button.tsx" }]
+        },
+        {
+          name: "card",
+          type: "registry:ui",
+          dependencies: [],
+          devDependencies: [],
+          registryDependencies: [],
+          files: [{ path: "src/components/ui/card.tsx" }]
+        }
+      ]
+    })
+
+    const outputDir = path.join(fixture, "packages", "registry", "r")
+    await buildCommand(registryPath, { output: outputDir, cwd: fixture })
+
+    const index = await fs.readJson(path.join(outputDir, "index.json"))
+    const buttonItem = index.components.find((item: any) => item.name === "button")
+    expect(buttonItem.dependencies).toEqual(["clsx"])
+    expect(buttonItem.registryDependencies).toEqual(["card"])
+  })
+
   it("preserves both components/index and variants/index entries by type", async () => {
     const componentsPath = path.join(fixture, "src", "components")
     const variantsPath = path.join(fixture, "src", "variants")
