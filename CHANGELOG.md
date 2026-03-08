@@ -1,6 +1,16 @@
 # Changelog
 
-## [1.4.1] - 2026-03-06
+## [1.4.2] - 2026-03-08
+
+### Changed
+- Refactored utility map generation to use config-driven sources in `SCHEMA_CONFIG`
+  and emit a deterministic flat `map: string[]` in `ui8kit.map.json`:
+  `version`, `generatedAt`, and a class array.
+- Added support for extracting runtime-aware class expansions from
+  `src/lib/utility-props.ts` (for `flex` direction values and semantic `gap`
+  aliases) while keeping the map wrapper shape stable.
+
+## [1.4.1] - 2026-03-07
 
 ### Added
 - Added import style configuration for component installation:
@@ -110,8 +120,3 @@
 ### Fixed
 - Completed remaining P1 CLI improvements and stabilized trial run against `.test-app`.
 - Added a full trial report in `REPORT.md` for `init`, `add`, `scan`, and `build` commands.
-
-## [Unreleased]
-
-### Unchanged
-- No pending changes at the moment.

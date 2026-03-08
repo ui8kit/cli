@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "A CLI for adding UI components to your Vite React projects (UI8Kit core/blocks registries)",
   "type": "module",
   "bin": {
@@ -42,6 +42,7 @@
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "get-cdn": "node scripts/get-cdn.js",
+    "check:utility-map": "bash scripts/check-utility-map.sh",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest"

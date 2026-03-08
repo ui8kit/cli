@@ -57,6 +57,15 @@ export const SCHEMA_CONFIG = {
     blocks: "./src/blocks",
     variants: "./src/variants",
   } as const,
+
+  // Utility map generation settings
+  utilityMap: {
+    sources: {
+      mapFile: "./src/lib/utility-props.map.ts",
+      runtimeFile: "./src/lib/utility-props.ts"
+    },
+    outputFile: "./packages/registry/ui8kit.map.json"
+  } as const,
   
   // Schema descriptions and titles
   descriptions: {

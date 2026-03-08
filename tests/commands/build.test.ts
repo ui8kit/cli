@@ -194,10 +194,12 @@ describe("build command", () => {
 
     const payload = await fs.readJson(mapOutput)
     expect(payload.version).toBe("1.0.0")
-    expect(payload.map).toEqual({
-      display: ["block", "flex"],
-      spacing: ["m-2", "m-4"]
-    })
+    expect(payload.map).toEqual([
+      "display-block",
+      "display-flex",
+      "m-2",
+      "m-4"
+    ])
   })
 
   it("resets cache before build", async () => {

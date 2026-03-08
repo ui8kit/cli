@@ -85,11 +85,14 @@ export async function buildCommand(
     // Create index file at /r/index.json
     await createIndexFile(registry, buildOptions.outputDir)
 
-    // Create map file at /packages/registry/ui8kit.map.json
-    const mapSourcePath = path.join(buildOptions.cwd, "src", "lib", "utility-props.map.ts")
-    const mapOutputPath = path.join(path.dirname(buildOptions.outputDir), "ui8kit.map.json")
+    // Create map file at configured registry map output path
+    const mapSourcePath = path.join(buildOptions.cwd, SCHEMA_CONFIG.utilityMap.sources.mapFile)
+    const runtimeSourcePath = path.join(buildOptions.cwd, SCHEMA_CONFIG.utilityMap.sources.runtimeFile)
+    const mapFileName = path.basename(SCHEMA_CONFIG.utilityMap.outputFile)
+    const mapOutputPath = path.join(path.dirname(buildOptions.outputDir), mapFileName)
     const mapResult = await generateMap({
       sourcePath: mapSourcePath,
+      runtimeSourcePath,
       outputPath: mapOutputPath,
       skipMissing: true
     })
