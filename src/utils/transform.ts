@@ -1,8 +1,9 @@
 import path from "path"
 import ts from "typescript"
-import { SCHEMA_CONFIG } from "./schema-config.js"
+import { ImportStyle, SCHEMA_CONFIG } from "./schema-config.js"
 
 const IMPORT_NODE_KIND = ts.SyntaxKind.ImportDeclaration
+const PACKAGE_STYLE_IMPORT_GROUPS = ["components", "layouts", "blocks", "variants", "ui"]
 
 function normalizeAliasKey(alias: string): string {
   return alias.replace(/\\/g, "/").replace(/\/+$/, "")
@@ -90,25 +91,54 @@ function pickAliasForImport(
   return undefined
 }
 
-function rewriteModuleSpecifier(specifierText: string, configuredAliases: Record<string, string>): string {
+function normalizeAliasImportPath(
+  specifierText: string,
+  aliasesMap: Map<string, string>
+): string | undefined {
+  const rewritten = pickAliasForImport(specifierText, aliasesMap)
+  if (!rewritten || rewritten === normalizeAliasKey(specifierText)) {
+    return undefined
+  }
+  return rewritten
+}
+
+function isComponentAliasImport(aliasPath: string): boolean {
+  const match = aliasPath.startsWith("@/") ? aliasPath.slice(2) : ""
+  if (!match) {
+    return false
+  }
+
+  const firstSegment = match.split("/")[0]
+  return PACKAGE_STYLE_IMPORT_GROUPS.includes(firstSegment)
+}
+
+function rewriteModuleSpecifier(
+  specifierText: string,
+  configuredAliases: Record<string, string>,
+  importStyle: ImportStyle = "alias"
+): string {
   if (!specifierText.startsWith("@/")) {
     return specifierText
   }
 
   const aliasesMap = normalizeConfiguredAliases(configuredAliases)
-  const rewrittenRemainder = pickAliasForImport(specifierText, aliasesMap)
-  if (!rewrittenRemainder || rewrittenRemainder === normalizeAliasKey(specifierText)) {
+  const rewrittenAlias = normalizeAliasImportPath(specifierText, aliasesMap)
+  if (!rewrittenAlias) {
     return specifierText
   }
 
-  if (rewrittenRemainder) {
-    return rewrittenRemainder
+  if (importStyle === "package" && isComponentAliasImport(rewrittenAlias)) {
+    return SCHEMA_CONFIG.packageAliases.core
   }
 
-  return specifierText
+  return rewrittenAlias
 }
 
-export function transformImports(content: string, aliases: Record<string, string>): string {
+export function transformImports(
+  content: string,
+  aliases: Record<string, string>,
+  importStyle: ImportStyle = "alias"
+): string {
   const sourceFile = ts.createSourceFile("component.tsx", content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
 
   const importSpans: Array<{ start: number; end: number; replacement: string }> = []
@@ -119,7 +149,7 @@ export function transformImports(content: string, aliases: Record<string, string
       const moduleSpecifier = node.moduleSpecifier
       if (ts.isStringLiteral(moduleSpecifier)) {
         const value = moduleSpecifier.text
-        const rewritten = rewriteModuleSpecifier(value, Object.fromEntries(configuredAliases))
+        const rewritten = rewriteModuleSpecifier(value, Object.fromEntries(configuredAliases), importStyle)
         if (rewritten !== value) {
           importSpans.push({
             start: moduleSpecifier.getStart(sourceFile),
@@ -154,8 +184,12 @@ export function transformCleanup(content: string): string {
     + "\n"
 }
 
-export function applyTransforms(content: string, aliases: Record<string, string>): string {
-  const withImports = transformImports(content, aliases)
+export function applyTransforms(
+  content: string,
+  aliases: Record<string, string>,
+  importStyle: ImportStyle = "alias"
+): string {
+  const withImports = transformImports(content, aliases, importStyle)
   return transformCleanup(withImports)
 }
 

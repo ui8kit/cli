@@ -27,6 +27,7 @@ interface RegistryItem {
   description?: string
   dependencies: string[]
   devDependencies: string[]
+  registryDependencies: string[]
   files: ComponentFile[]
 }
 
@@ -34,6 +35,7 @@ interface ASTAnalysis {
   dependencies: string[]
   devDependencies: string[]
   description?: string
+  registryDependencies: string[]
   hasExports: boolean
 }
 
@@ -58,6 +60,139 @@ const DEV_PATTERNS = [
   'tailwindcss',
   'autoprefixer'
 ] as const
+
+const PACKAGE_CORE_PREFIX = "@ui8kit/core"
+const PACKAGE_STYLE_BARS = [
+  "components",
+  "layouts",
+  "blocks",
+  "variants",
+  "ui"
+] as const
+const PACKAGE_STYLE_ALIASES = ["@/components", "@/components/ui", "@/ui", "@/layouts", "@/blocks", "@/variants"]
+
+const REGISTRY_ALIAS_ROOTS = Object.keys(SCHEMA_CONFIG.defaultAliases)
+
+function toPosix(value: string): string {
+  return value.replace(/\\/g, "/")
+}
+
+function toLowerOrEmpty(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function stripImportExtension(moduleName: string): string {
+  return moduleName.replace(/\.[tj]sx?$/i, "")
+}
+
+function getAliasMatch(moduleName: string): { alias: string; remainder: string } | null {
+  const normalized = toPosix(moduleName)
+  if (!normalized.startsWith("@/")) {
+    return null
+  }
+
+  const directMatch = REGISTRY_ALIAS_ROOTS
+    .filter(alias => normalized === alias || normalized.startsWith(`${alias}/`))
+    .sort((a, b) => b.length - a.length)[0]
+
+  if (!directMatch) {
+    return null
+  }
+
+  const remainder = normalized.slice(directMatch.length).replace(/^\/+/, "")
+  return {
+    alias: directMatch,
+    remainder
+  }
+}
+
+function shouldRewriteAsRegistryDependency(aliasImport: string): boolean {
+  const match = getAliasMatch(aliasImport)
+  if (!match || !match.remainder) {
+    return false
+  }
+  if (PACKAGE_STYLE_ALIASES.includes(match.alias)) {
+    return true
+  }
+
+  const firstSegment = match.remainder.split("/")[0]
+  return PACKAGE_STYLE_BARS.includes(firstSegment)
+}
+
+function isUi8kitCoreImport(moduleName: string): boolean {
+  return moduleName === PACKAGE_CORE_PREFIX || moduleName.startsWith(`${PACKAGE_CORE_PREFIX}/`)
+}
+
+function extractCoreImportNames(moduleName: string, node: ts.ImportDeclaration): string[] {
+  if (!isUi8kitCoreImport(moduleName)) {
+    return []
+  }
+
+  const names: string[] = []
+  const importClause = node.importClause
+  if (importClause?.name) {
+    names.push(importClause.name.text)
+  }
+
+  const namedBindings = importClause?.namedBindings
+  if (namedBindings && ts.isNamedImports(namedBindings)) {
+    namedBindings.elements.forEach(element => {
+      names.push(element.name.text)
+    })
+  }
+
+  if (moduleName.startsWith(`${PACKAGE_CORE_PREFIX}/`)) {
+    const explicitComponent = toLowerOrEmpty(stripImportExtension(moduleName.slice(PACKAGE_CORE_PREFIX.length + 1)))
+    if (explicitComponent && !names.includes(explicitComponent)) {
+      names.push(explicitComponent)
+    }
+  }
+
+  return names
+}
+
+function mapAliasImportToComponentName(moduleName: string): string | null {
+  const aliasMatch = getAliasMatch(moduleName)
+  if (!aliasMatch || !aliasMatch.remainder) {
+    return null
+  }
+
+  if (!shouldRewriteAsRegistryDependency(moduleName)) {
+    return null
+  }
+
+  const componentName = stripImportExtension(aliasMatch.remainder)
+    .split("/")
+    .at(-1)
+
+  return componentName ? toLowerOrEmpty(componentName) : null
+}
+
+function extractRegistryDependenciesFromImport(node: ts.ImportDeclaration): string[] {
+  const moduleSpecifier = node.moduleSpecifier
+  if (!ts.isStringLiteral(moduleSpecifier)) {
+    return []
+  }
+
+  const moduleName = moduleSpecifier.text
+  const importedNames: string[] = []
+
+  if (isUi8kitCoreImport(moduleName)) {
+    for (const name of extractCoreImportNames(moduleName, node)) {
+      importedNames.push(toLowerOrEmpty(name))
+    }
+    return importedNames
+  }
+
+  if (moduleName.startsWith("@/")) {
+    const aliasName = mapAliasImportToComponentName(moduleName)
+    if (aliasName) {
+      importedNames.push(aliasName)
+    }
+  }
+
+  return importedNames
+}
 
 function toGlobAll(dir: string): string {
   return path.join(dir, "**/*").replace(/\\/g, "/")
@@ -114,6 +249,7 @@ export async function scanCommand(
     ]
     const seen = new Set<string>()
     const allComponents: RegistryItem[] = []
+  const localDependencyRefs = new Map<string, Set<string>>()
     for (const comp of allComponentsRaw) {
       const key = `${comp.type}:${comp.name}`
       if (seen.has(key)) continue
@@ -125,15 +261,47 @@ export async function scanCommand(
     
     // Analyze each component for dependencies and devDependencies
     for (const component of allComponents) {
-      const analysis = await analyzeComponentDependencies(component.files, scanOptions.cwd)
+    const analysis = await analyzeComponentDependencies(component.files, scanOptions.cwd)
       component.dependencies = analysis.dependencies
       component.devDependencies = analysis.devDependencies
+    localDependencyRefs.set(
+      `${component.type}:${component.name}`,
+      new Set(analysis.registryDependencies.map(toLowerOrEmpty))
+    )
       
       // Update description if found during analysis
       if (analysis.description && !component.description) {
         component.description = analysis.description
       }
     }
+
+  const availableComponents = new Set(allComponents.map(item => item.name.toLowerCase()))
+  allComponents.forEach(item => {
+    const rawDependencies = localDependencyRefs.get(`${item.type}:${item.name}`) ?? new Set<string>()
+    const resolvedDependencies = new Set<string>()
+    const unresolvedDependencies: string[] = []
+
+    for (const candidate of rawDependencies) {
+      const normalized = toLowerOrEmpty(candidate)
+      if (!normalized) {
+        continue
+      }
+      if (normalized === item.name.toLowerCase()) {
+        continue
+      }
+      if (!availableComponents.has(normalized)) {
+        unresolvedDependencies.push(normalized)
+        continue
+      }
+      resolvedDependencies.add(normalized)
+    }
+
+    if (unresolvedDependencies.length > 0) {
+      console.warn(`⚠️  Missing local component references in ${item.name} (${item.type}): ${unresolvedDependencies.join(", ")}`)
+    }
+
+    item.registryDependencies = Array.from(resolvedDependencies).sort()
+  })
     
     // Create registry with dynamic registry name
     const registry = {
@@ -219,6 +387,7 @@ async function scanDirectory(dirPath: string, type: string, ignorePatterns: stri
         description,
         dependencies: [],
         devDependencies: [],
+        registryDependencies: [],
         files: [{
           path: relativePath,
           target: getTargetFromType(type)
@@ -267,6 +436,7 @@ async function scanDirectoryFlat(dirPath: string, type: string, ignoreFiles: str
         description,
         dependencies: [],
         devDependencies: [],
+        registryDependencies: [],
         files: [{
           path: relativePath,
           target: getTargetFromType(type)
@@ -303,6 +473,7 @@ async function scanSingleFile(filePath: string, type: string): Promise<RegistryI
       description,
       dependencies: [],
       devDependencies: [],
+      registryDependencies: [],
       files: [{
         path: relativePath,
         target: getTargetFromType(type)
@@ -351,9 +522,11 @@ async function analyzeComponentDependencies(files: ComponentFile[], cwd: string)
   dependencies: string[]
   devDependencies: string[]
   description?: string
+  registryDependencies: string[]
 }> {
   const allDependencies = new Set<string>()
   const allDevDependencies = new Set<string>()
+  const allRegistryDependencies = new Set<string>()
   let description: string | undefined
   
   for (const file of files) {
@@ -374,6 +547,7 @@ async function analyzeComponentDependencies(files: ComponentFile[], cwd: string)
       // Merge dependencies
       analysis.dependencies.forEach(dep => allDependencies.add(dep))
       analysis.devDependencies.forEach(dep => allDevDependencies.add(dep))
+      analysis.registryDependencies.forEach(dep => allRegistryDependencies.add(dep))
       
       // Use first found description
       if (analysis.description && !description) {
@@ -388,13 +562,15 @@ async function analyzeComponentDependencies(files: ComponentFile[], cwd: string)
   return {
     dependencies: Array.from(allDependencies),
     devDependencies: Array.from(allDevDependencies),
-    description
+    description,
+    registryDependencies: Array.from(allRegistryDependencies)
   }
 }
 
 function analyzeAST(sourceFile: ts.SourceFile): ASTAnalysis {
   const dependencies = new Set<string>()
   const devDependencies = new Set<string>()
+  const registryDependencies = new Set<string>()
   let description: string | undefined
   let hasExports = false
   
@@ -404,6 +580,12 @@ function analyzeAST(sourceFile: ts.SourceFile): ASTAnalysis {
       const moduleSpecifier = node.moduleSpecifier
       if (ts.isStringLiteral(moduleSpecifier)) {
         const moduleName = moduleSpecifier.text
+
+        for (const name of extractRegistryDependenciesFromImport(node)) {
+          if (name) {
+            registryDependencies.add(name)
+          }
+        }
         
         // Add only external dependencies using the same logic as generate-registry.ts
         if (isExternalDependency(moduleName)) {
@@ -441,6 +623,7 @@ function analyzeAST(sourceFile: ts.SourceFile): ASTAnalysis {
     dependencies: Array.from(dependencies),
     devDependencies: Array.from(devDependencies),
     description,
+    registryDependencies: Array.from(registryDependencies),
     hasExports
   }
 }

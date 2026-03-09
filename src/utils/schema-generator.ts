@@ -89,6 +89,12 @@ export function generateConfigSchema() {
         "type": "boolean",
         "default": false,
         "description": SCHEMA_CONFIG.fieldDescriptions.strictCdn
+      },
+      "importStyle": {
+        "type": "string",
+        "enum": Object.values(SCHEMA_CONFIG.importStyle),
+        "default": SCHEMA_CONFIG.importStyle.alias,
+        "description": SCHEMA_CONFIG.fieldDescriptions.importStyle
       }
     },
     "required": ["framework"],

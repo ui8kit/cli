@@ -31,7 +31,7 @@ export const SCHEMA_CONFIG = {
   cdnBaseUrls: [
     "https://unpkg.com/@ui8kit/registry@latest/r",
     "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r", 
-    "https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r"
+    "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r"
   ] as const,
   
   // Component categories
@@ -56,6 +56,15 @@ export const SCHEMA_CONFIG = {
     layouts: "./src/layouts",
     blocks: "./src/blocks",
     variants: "./src/variants",
+  } as const,
+
+  // Utility map generation settings
+  utilityMap: {
+    sources: {
+      mapFile: "./src/lib/utility-props.map.ts",
+      runtimeFile: "./src/lib/utility-props.ts"
+    },
+    outputFile: "./packages/registry/ui8kit.map.json"
   } as const,
   
   // Schema descriptions and titles
@@ -90,14 +99,23 @@ export const SCHEMA_CONFIG = {
     registryVersion: "Registry version",
     registryUrl: "Explicit registry URL override",
     strictCdn: "Disable fallback to built-in CDN URLs",
+    importStyle: "How component imports are rewritten: alias or package",
     lastUpdated: "Last update timestamp",
     categories: "Available component categories",
     components: "Component metadata for quick lookup",
     items: "Full component definitions",
+  } as const,
+  packageAliases: {
+    core: "@ui8kit/core"
+  } as const,
+  importStyle: {
+    alias: "alias",
+    package: "package"
   } as const
 } as const
 
 export type RegistryType = typeof SCHEMA_CONFIG.registryTypes[number]
+export type ImportStyle = (typeof SCHEMA_CONFIG.importStyle)[keyof typeof SCHEMA_CONFIG.importStyle]
 
 // Map component types to their target installation folders (on user's project side)
 export const TYPE_TO_FOLDER = {

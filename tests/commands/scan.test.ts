@@ -82,4 +82,24 @@ describe("scan command", () => {
     expect(registry.items.some((item: any) => item.name === "index" && item.type === "registry:composite")).toBe(true)
     expect(registry.items.some((item: any) => item.name === "index" && item.type === "registry:variants")).toBe(true)
   })
+
+  it("detects registryDependencies from local component and package imports", async () => {
+    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
+
+    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+    await fs.writeFile(path.join(fixture, "src", "components", "ui", "sidebar.tsx"), "export const Sidebar = () => null\n")
+    await fs.writeFile(
+      path.join(fixture, "src", "components", "ui", "card.tsx"),
+      "import { Button } from \"@/components/ui/button\"\nimport { Sidebar } from \"@ui8kit/core\"\nexport const Card = () => null\n"
+    )
+
+    const outputPath = path.join(fixture, "src", "registry.json")
+    await scanCommand({ cwd: fixture, output: outputPath, source: path.join(fixture, "src") })
+
+    const registry = await fs.readJson(outputPath)
+    const card = registry.items.find((item: any) => item.name === "card")
+    expect(card).toBeDefined()
+    expect(Array.isArray(card.registryDependencies)).toBe(true)
+    expect(card.registryDependencies.sort()).toEqual(["button", "sidebar"])
+  })
 })

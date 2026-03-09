@@ -70,5 +70,58 @@ describe("add command CDN option wiring", () => {
       }
     })
   })
+
+  it("creates base project directories when adding --all", async () => {
+    const component = {
+      name: "button",
+      type: "registry:ui",
+      dependencies: [],
+      devDependencies: [],
+      files: [
+        { path: "components/ui/button.tsx", content: "export const Button = () => null\n" }
+      ]
+    }
+
+    vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([component as any])
+    vi.spyOn(registryApi, "getComponent").mockResolvedValue(component as any)
+    const ensureDirSpy = vi.spyOn(fs, "ensureDir").mockResolvedValue(undefined as never)
+
+    await addCommand(["all"], {
+      all: true,
+      registry: "ui"
+    })
+
+    const createdDirs = ensureDirSpy.mock.calls.map(([dir]) => path.resolve(String(dir)))
+    expect(createdDirs).toContain(path.resolve(fixture, "src/lib"))
+    expect(createdDirs).toContain(path.resolve(fixture, "src/components"))
+    expect(createdDirs).toContain(path.resolve(fixture, "src/components/ui"))
+    expect(createdDirs).toContain(path.resolve(fixture, "src/blocks"))
+    expect(createdDirs).toContain(path.resolve(fixture, "src/layouts"))
+    expect(createdDirs).toContain(path.resolve(fixture, "src/variants"))
+  })
+
+  it("does not create base directories in dry-run mode", async () => {
+    const component = {
+      name: "button",
+      type: "registry:ui",
+      dependencies: [],
+      devDependencies: [],
+      files: [
+        { path: "components/ui/button.tsx", content: "export const Button = () => null\n" }
+      ]
+    }
+
+    vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([component as any])
+    vi.spyOn(registryApi, "getComponent").mockResolvedValue(component as any)
+    const ensureDirSpy = vi.spyOn(fs, "ensureDir").mockResolvedValue(undefined as never)
+
+    await addCommand(["all"], {
+      all: true,
+      dryRun: true,
+      registry: "ui"
+    })
+
+    expect(ensureDirSpy).not.toHaveBeenCalled()
+  })
 })
 

@@ -46,6 +46,7 @@ export const configSchema = z.object({
   registryUrl: z.string().url().optional(),
   registryVersion: z.string().optional(),
   strictCdn: z.boolean().default(false).optional(),
+  importStyle: z.enum(["alias", "package"]).default("alias").optional(),
 })
 
 export type Config = z.infer<typeof configSchema> 

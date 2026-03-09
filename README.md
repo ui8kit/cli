@@ -38,13 +38,16 @@ Options:
 - `--registry-url <url>` Override registry CDN base URL
 - `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
 - `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
+- `--import-style <alias|package>` Choose installed component import style (`alias` or package barrel `@ui8kit/core`; default: `alias`)
 
 When running without `--yes`, `init` now asks for:
 
 - Global CSS file path (default: `src/index.css`)
 - Import alias for components (default: `@/components`)
+- Import style for installed components (`alias` or `package`)
 
 `typescript` is always set to `true` and `framework` is fixed to `vite-react`.
+`init` now writes configuration and core utilities/variants. Empty category folders are created during bulk install (`add --all`).
 
 ### `add`
 
@@ -75,6 +78,13 @@ Options:
 - `-f, --force` Overwrite existing files
 - `-r, --registry <type>` Registry type (default: `ui`)
 - `--dry-run` Show planned actions without writing files
+- `--all` also creates base install directories before fetching and writing components:
+  - `src/lib`
+  - `src/components`
+  - `src/components/ui`
+  - `src/blocks`
+  - `src/layouts`
+  - `src/variants`
 - `--retry` Enable retry logic for unstable connections
 - `--no-cache` (root option) bypasses cache for this run.
 - `--registry-url <url>` Override registry CDN base URL
@@ -195,7 +205,7 @@ Check registry availability for each CDN source and compare payload metadata wit
 
 ```bash
 npm run get-cdn
-npm run get-cdn -- --url https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r
+npm run get-cdn -- --url https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r
 npm run get-cdn -- --path components/variants/index.json --url https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r
 ```
 
@@ -231,7 +241,8 @@ Options:
 - `[registry]` Path to registry JSON (default: `./src/registry.json`)
 - `-o, --output <path>` Output directory (default: `./packages/registry/r`)
 
-The build command also generates `packages/registry/ui8kit.map.json` when `src/lib/utility-props.map.ts` is available.
+The build command also generates `packages/registry/ui8kit.map.json` when
+`src/lib/utility-props.map.ts` is available.
 
 Generated map shape:
 
@@ -239,12 +250,22 @@ Generated map shape:
 {
   "version": "1.0.0",
   "generatedAt": "2026-03-06T12:00:00.000Z",
-  "map": {
-    "display": ["block", "flex"],
-    "spacing": ["m-2", "m-4"]
-  }
+  "map": [
+    "block",
+    "display-block",
+    "display-flex",
+    "m-2",
+    "m-4"
+  ]
 }
 ```
+
+`map` keeps the existing top-level envelope, but the value is now a flat string
+array of Tailwind classes. The generation reads both:
+
+- `src/lib/utility-props.map.ts` — grouped whitelist map by utility prefix.
+- `src/lib/utility-props.ts` — runtime rule source used for special
+  expansions (for example `flex` direction handling and semantic `gap` aliases).
 
 ### Global options
 

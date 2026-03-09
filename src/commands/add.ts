@@ -119,6 +119,10 @@ async function addAllComponents(
   const spinner = ora(CLI_MESSAGES.info.fetchingComponentList(registryType)).start()
   
   try {
+    if (!options.dryRun) {
+      await ensureBaseProjectDirectories(config)
+    }
+
     const allComponents = await getAllComponentsFn(registryType)
     
     if (allComponents.length === 0) {
@@ -165,6 +169,15 @@ async function addAllComponents(
     CLI_MESSAGES.examples.troubleshooting.forEach(alt => console.log(`  • ${alt}`))
     process.exit(1)
   }
+}
+
+async function ensureBaseProjectDirectories(config: Config): Promise<void> {
+  await fs.ensureDir(config.libDir)
+  await fs.ensureDir(config.componentsDir)
+  await fs.ensureDir(path.join(config.componentsDir, "ui"))
+  await fs.ensureDir(SCHEMA_CONFIG.defaultDirectories.blocks)
+  await fs.ensureDir(SCHEMA_CONFIG.defaultDirectories.layouts)
+  await fs.ensureDir(SCHEMA_CONFIG.defaultDirectories.variants)
 }
 
 async function processComponents(
@@ -222,7 +235,7 @@ async function processComponents(
           if (exists) {
             const currentContent = await fs.readFile(targetPath, "utf-8")
             const transformedIncoming = shouldTransformFile(fileName)
-              ? applyTransforms(file.content, config.aliases)
+              ? applyTransforms(file.content, config.aliases, config.importStyle || "alias")
               : file.content
             const changed = hasDiff(currentContent, transformedIncoming)
             if (changed) {
@@ -433,7 +446,7 @@ async function installComponentFiles(
 
     await fs.ensureDir(path.dirname(targetPath))
     const preparedContent = shouldTransformFile(fileName)
-      ? applyTransforms(file.content, config.aliases)
+      ? applyTransforms(file.content, config.aliases, config.importStyle || "alias")
       : file.content
     await fs.writeFile(targetPath, preparedContent, "utf-8")
   }

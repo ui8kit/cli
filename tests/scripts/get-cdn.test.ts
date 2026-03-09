@@ -14,7 +14,7 @@ describe("get-cdn utilities", () => {
         cdnBaseUrls: [
           "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
           'https://unpkg.com/@ui8kit/registry@latest/r',
-          "https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r",
+          "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r",
         ],
       }
     `
@@ -22,7 +22,7 @@ describe("get-cdn utilities", () => {
     expect(extractCdnBaseUrls(content)).toEqual([
       "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
       "https://unpkg.com/@ui8kit/registry@latest/r",
-      "https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r"
+      "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r"
     ])
   })
 
