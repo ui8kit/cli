@@ -31,7 +31,7 @@ export const SCHEMA_CONFIG = {
   cdnBaseUrls: [
     "https://unpkg.com/@ui8kit/registry@latest/r",
     "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r", 
-    "https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r"
+    "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r"
   ] as const,
   
   // Component categories

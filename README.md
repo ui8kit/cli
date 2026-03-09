@@ -205,7 +205,7 @@ Check registry availability for each CDN source and compare payload metadata wit
 
 ```bash
 npm run get-cdn
-npm run get-cdn -- --url https://raw.githubusercontent.com/buildy-ui/ui/main/packages/@ui8kit/registry/r
+npm run get-cdn -- --url https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r
 npm run get-cdn -- --path components/variants/index.json --url https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r
 ```
 
