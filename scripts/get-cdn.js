@@ -1,12 +1,24 @@
 #!/usr/bin/env node
 
+/**
+ * CDN diagnostics for ui8kit registry bases.
+ * Reads cdnBaseUrls from schema-config (or --config) and probes sample paths.
+ *
+ *   node scripts/get-cdn.js
+ *   node scripts/get-cdn.js --url https://cdn.example.com/r --path index.json --json
+ */
+
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
+/** Default probe paths under registry base (`…/r/…`) */
 const SUFFIXES = [
+  "index.json",
   "components/variants/index.json",
-  "components/ui/Button.json",
+  "lib/utils.json",
+  "utils/cn.json",
+  "components/ui/button.json",
 ]
 
 export function parseArgs(argv) {
@@ -49,16 +61,18 @@ export function parseArgs(argv) {
     configFiles,
     suffixes: [...new Set(suffixes)],
     extraUrls,
-    jsonOutput
+    jsonOutput,
   }
 }
 
 export function extractCdnBaseUrls(fileContent) {
-  const match = fileContent.match(/cdnBaseUrls\s*:\s*\[([\s\S]*?)\]/m)
+  const match = fileContent.match(/cdnBaseUrls\s*:\s*\[([\s\S]*?)\](?:\s*as\b)?/m)
   if (!match) {
     return []
   }
-  return Array.from(match[1].matchAll(/["'`]\s*([^"'`]+?)\s*["'`]/g)).map((m) => m[1]).filter(Boolean)
+  return Array.from(match[1].matchAll(/["'`]\s*([^"'`]+?)\s*["'`]/g))
+    .map((m) => m[1])
+    .filter(Boolean)
 }
 
 export function normalizeBaseUrl(baseUrl) {
@@ -66,10 +80,7 @@ export function normalizeBaseUrl(baseUrl) {
 }
 
 export function normalizeRelativePath(value) {
-  return value
-    .trim()
-    .replace(/^\/+/, "")
-    .replace(/^r\/+/, "")
+  return value.trim().replace(/^\/+/, "").replace(/^r\/+/, "")
 }
 
 export function buildTargetUrls(cdnBaseUrls, suffixes) {
@@ -78,13 +89,11 @@ export function buildTargetUrls(cdnBaseUrls, suffixes) {
     const baseUrl = normalizeBaseUrl(base).replace(/\/r\/?$/, "")
     for (const suffix of suffixes) {
       const normalizedSuffix = normalizeRelativePath(suffix)
-      if (!normalizedSuffix) {
-        continue
-      }
+      if (!normalizedSuffix) continue
       targets.push({
         baseUrl,
         suffix: normalizedSuffix,
-        target: `${baseUrl}/r/${normalizedSuffix}`
+        target: `${baseUrl}/r/${normalizedSuffix}`,
       })
     }
   }
@@ -106,7 +115,6 @@ export async function readUrlsFromFiles(configFiles) {
       console.error(`[warn] Cannot read ${resolvedPath}: ${error.message}`)
     }
   }
-
   return [...baseUrls]
 }
 
@@ -135,10 +143,10 @@ function usage() {
   node scripts/get-cdn.js [--config path] [--path path] [--json] [--url baseUrl]
 
 Options:
-  --config, -c   Path to file containing cdnBaseUrls (default: src/utils/schema-config.ts)
-  --path, -p     Additional path appended to CDN base URLs
-  --url, -u      Prepend additional base URL
-  --json         Output raw JSON
+  --config, -c   File with cdnBaseUrls (default: src/utils/schema-config.ts)
+  --path, -p     Extra path under /r/ to probe
+  --url, -u      Extra registry base URL (…/r or host root)
+  --json         Raw JSON output
 `)
 }
 
@@ -151,14 +159,19 @@ async function main() {
   }
 
   const bases = await readUrlsFromFiles(configFiles)
-  if (!bases.length) {
-    console.error("No valid cdnBaseUrls found.")
+  const allBases = [
+    ...new Set([
+      ...bases,
+      ...extraUrls.filter((url) => url.startsWith("http://") || url.startsWith("https://")),
+    ]),
+  ]
+
+  if (!allBases.length) {
+    console.error("No valid CDN base URLs found (config or --url).")
     process.exit(1)
   }
 
-  const allBases = [...new Set([...bases, ...extraUrls.filter((url) => url.startsWith("http://") || url.startsWith("https://"))])]
-  const targets = buildTargetUrls(allBases, suffixes).map(entry => entry.target)
-
+  const targets = buildTargetUrls(allBases, suffixes).map((entry) => entry.target)
   const results = []
   for (const target of targets) {
     results.push(await fetchAndReport(target))
@@ -173,11 +186,11 @@ async function main() {
     if (result.ok) {
       console.log(`[ok] ${result.status} ${result.url}`)
       if (result.contentLength !== null) {
-        console.log(`     size=${result.contentLength}, etag=${result.etag || "n/a"}, last-modified=${result.lastModified || "n/a"}`)
+        console.log(
+          `     size=${result.contentLength}, etag=${result.etag || "n/a"}, last-modified=${result.lastModified || "n/a"}`,
+        )
       }
-      if (result.preview) {
-        console.log(`     preview=${result.preview}`)
-      }
+      if (result.preview) console.log(`     preview=${result.preview}`)
     } else if (result.error) {
       console.log(`[fail] ${result.url} (${result.error})`)
     } else {
@@ -186,7 +199,10 @@ async function main() {
   }
 }
 
-if (import.meta.url === (process.argv[1] ? pathToFileURL(process.argv[1]).href : "")) {
+const isDirectRun =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+
+if (isDirectRun) {
   main().catch((error) => {
     console.error(error)
     process.exit(1)

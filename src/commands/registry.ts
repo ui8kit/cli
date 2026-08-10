@@ -1,8 +1,8 @@
-import fs from "fs-extra"
 import path from "path"
 import prompts from "prompts"
 import { logger } from "../utils/logger.js"
 import { handleError } from "../utils/errors.js"
+import { pathExists, remove } from "../utils/fs.js"
 
 const DEFAULT_BUILD_OUTPUT_DIR = path.join("packages", "registry", "r")
 const REGISTRY_ROOT = path.join("packages", "registry")
@@ -58,8 +58,8 @@ async function confirmDeletion(paths: string[]): Promise<boolean> {
 }
 
 async function removePath(target: string) {
-  if (await fs.pathExists(target)) {
-    await fs.remove(target)
+  if (await pathExists(target)) {
+    await remove(target)
     logger.info(`removed: ${target}`)
   }
 }
@@ -69,7 +69,7 @@ export async function registryCleanCommand(options: RegistryCleanOptions = {}) {
   const targets = getRegistryCleanTargets(cwd, Boolean(options.all))
   const existing = []
   for (const target of targets) {
-    if (isSafePath(target, cwd) && await fs.pathExists(target)) {
+    if (isSafePath(target, cwd) && await pathExists(target)) {
       existing.push(target)
     }
   }

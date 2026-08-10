@@ -1,7 +1,4 @@
-import ora from "ora"
 import path from "path"
-import fs from "fs-extra"
-import fetch from "node-fetch"
 import prompts from "prompts"
 import { getComponent, getAllComponents } from "../registry/api.js"
 import { findConfig } from "../utils/project.js"
@@ -11,11 +8,19 @@ import { validateComponentInstallation, handleValidationError } from "../utils/r
 import { checkProjectDependencies, showDependencyStatus } from "../utils/dependency-checker.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { installDependencies } from "../utils/package-manager.js"
-import { logger } from "../utils/logger.js"
+import { logger, Spinner } from "../utils/logger.js"
 import { resolveRegistryTree } from "../utils/dependency-resolver.js"
 import { handleError, ConfigNotFoundError } from "../utils/errors.js"
 import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
 import { applyTransforms, shouldTransformFile } from "../utils/transform.js"
+import {
+  inferTargetFromType,
+  listInstallRoots,
+  resolveFileInstallPath,
+  resolveInstallDir,
+} from "../utils/paths.js"
+import { ensureDir } from "../utils/project.js"
+import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
 
 interface AddOptions {
   force?: boolean
@@ -27,33 +32,42 @@ interface AddOptions {
   registryUrl?: string
   registryVersion?: string
   strictCdn?: boolean
+  runtime?: string
 }
 
-const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
+const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils"]
+
+export { inferTargetFromType, resolveInstallDir }
 
 export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
-  const cdnResolution: CdnResolutionOptions = {
-    registryUrl: options.registryUrl,
-    registryVersion: options.registryVersion,
-    strictCdn: options.strictCdn
-  }
-  const requestOptions = {
-    excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
-    maxRetries: options.retry ? 3 : 1,
-    noCache: options.cache === false,
-    cdn: cdnResolution
-  }
 
   try {
+    const config = await findConfig(registryType)
+    if (!config) {
+      throw new ConfigNotFoundError(registryType)
+    }
+
+    const cdnResolution: CdnResolutionOptions = {
+      registryUrl: options.registryUrl || config.registryUrl,
+      registryVersion: options.registryVersion || config.registryVersion,
+      strictCdn: options.strictCdn ?? config.strictCdn,
+      cdnBaseUrls: config.cdnBaseUrls,
+    }
+    const requestOptions = {
+      excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
+      maxRetries: options.retry ? 3 : 1,
+      noCache: options.cache === false,
+      cdn: cdnResolution,
+    }
+
     if (options.all || components.includes("all")) {
       await addAllComponents(options, registryType, requestOptions)
       return
     }
 
-    const selectedComponents = components.length > 0
-      ? components
-      : await pickComponentsFromPrompt(registryType, requestOptions)
+    const selectedComponents =
+      components.length > 0 ? components : await pickComponentsFromPrompt(registryType, requestOptions)
 
     if (selectedComponents.length === 0) {
       logger.warn(CLI_MESSAGES.errors.noComponentsSpecified)
@@ -65,26 +79,24 @@ export async function addCommand(components: string[], options: AddOptions) {
       handleValidationError(validation)
     }
 
-    const config = await findConfig(registryType)
-    if (!config) {
-      throw new ConfigNotFoundError(registryType)
-    }
-
     if (options.retry) {
       logger.info(CLI_MESSAGES.info.retryEnabled)
     }
 
     logger.info(CLI_MESSAGES.info.installing(registryType))
 
-    const getComponentFn = (name: string, type: RegistryType) =>
-      getComponent(name, type, requestOptions)
+    for (const root of listInstallRoots(config)) {
+      await ensureDir(root)
+    }
+
+    const getComponentFn = (name: string, type: RegistryType) => getComponent(name, type, requestOptions)
 
     const results = await installRequestedComponents(
       selectedComponents,
       registryType,
       config,
       getComponentFn,
-      options
+      options,
     )
 
     displayInstallationSummary(registryType, results)
@@ -109,22 +121,22 @@ async function addAllComponents(
   if (!config) {
     throw new ConfigNotFoundError(registryType)
   }
-  
+
   const getAllComponentsFn = (type: RegistryType) => getAllComponents(type, requestOptions)
-  
+
   if (options.retry) {
     logger.info(CLI_MESSAGES.info.retryEnabled)
   }
-  
-  const spinner = ora(CLI_MESSAGES.info.fetchingComponentList(registryType)).start()
-  
+
+  const spinner = new Spinner(CLI_MESSAGES.info.fetchingComponentList(registryType)).start()
+
   try {
     if (!options.dryRun) {
       await ensureBaseProjectDirectories(config)
     }
 
     const allComponents = await getAllComponentsFn(registryType)
-    
+
     if (allComponents.length === 0) {
       spinner.fail(`No components found in ${registryType} registry`)
       logger.warn(`\n⚠️  ${registryType} ${CLI_MESSAGES.errors.registryTempUnavailable}`)
@@ -132,9 +144,9 @@ async function addAllComponents(
       CLI_MESSAGES.examples.troubleshooting.forEach(alt => console.log(`  • ${alt}`))
       return
     }
-    
+
     spinner.succeed(CLI_MESSAGES.status.foundComponents(allComponents.length, registryType))
-    
+
     if (options.dryRun) {
       await installRequestedComponents(
         allComponents.map(c => c.name),
@@ -146,7 +158,7 @@ async function addAllComponents(
       )
       return
     }
-    
+
     const results = await installRequestedComponents(
       allComponents.map(c => c.name),
       registryType,
@@ -155,12 +167,12 @@ async function addAllComponents(
       options,
       allComponents
     )
-    
+
     // Install components/index.ts when using --all
     await installComponentsIndex(registryType, config, requestOptions.cdn)
-    
+
     displayInstallationSummary(registryType, results)
-    
+
   } catch (error) {
     spinner.fail(CLI_MESSAGES.errors.failedToFetch(registryType))
     logger.error(`Error: ${(error as Error).message}`)
@@ -172,12 +184,9 @@ async function addAllComponents(
 }
 
 async function ensureBaseProjectDirectories(config: Config): Promise<void> {
-  await fs.ensureDir(config.libDir)
-  await fs.ensureDir(config.componentsDir)
-  await fs.ensureDir(path.join(config.componentsDir, "ui"))
-  await fs.ensureDir(SCHEMA_CONFIG.defaultDirectories.blocks)
-  await fs.ensureDir(SCHEMA_CONFIG.defaultDirectories.layouts)
-  await fs.ensureDir(SCHEMA_CONFIG.defaultDirectories.variants)
+  for (const root of listInstallRoots(config)) {
+    await fsEnsureDir(root)
+  }
 }
 
 async function processComponents(
@@ -200,20 +209,32 @@ async function processComponents(
   for (let i = 0; i < componentNames.length; i += 1) {
     const componentName = componentNames[i]
     const position = `${i + 1}/${total}`
-    const spinner = ora(`[${position}] ${CLI_MESSAGES.status.installing(componentName, registryType)}`).start()
-    
+    const spinner = new Spinner(`[${position}] ${CLI_MESSAGES.status.installing(componentName, registryType)}`).start()
+
     try {
       const lookupName = componentName.toLowerCase()
       let component: Component | null = componentMap?.get(lookupName) ?? null
-      
+
       if (!component) {
         component = await getComponentFn(componentName, registryType)
       }
-      
+
       if (!component) {
         throw new Error(CLI_MESSAGES.errors.componentNotFound(componentName, registryType))
       }
-      
+
+      const preferredRuntime = options.runtime || config.runtime
+      if (
+        preferredRuntime &&
+        component.runtime &&
+        component.runtime !== preferredRuntime
+      ) {
+        spinner.info(
+          `[${position}] skip ${component.name} (runtime ${component.runtime} ≠ ${preferredRuntime})`,
+        )
+        continue
+      }
+
       if (options.dryRun) {
         spinner.succeed(`[${position}] ${CLI_MESSAGES.status.wouldInstall(component.name, registryType)}`)
         logger.info(`   Type: ${component.type}`)
@@ -222,24 +243,30 @@ async function processComponents(
         }
         logger.info(`   Files: ${component.files.length}`)
         logger.info(`   Dependencies: ${component.dependencies.join(", ") || "none"}`)
-        
+
         for (const file of component.files) {
-          const fileName = path.basename(file.path)
-          const target = file.target || inferTargetFromType(component.type)
-          const installDir = resolveInstallDir(target, config)
-          const targetPath = path.join(process.cwd(), installDir, fileName)
-          const exists = await fs.pathExists(targetPath)
+          const targetPath = path.join(
+            process.cwd(),
+            resolveFileInstallPath(file, component.type, config),
+          )
+          const fileName = path.basename(targetPath)
+          const exists = await pathExists(targetPath)
           const status = exists ? "overwrite" : "create"
           logger.info(`   ${status}: ${targetPath}`)
-          
+
           if (exists) {
-            const currentContent = await fs.readFile(targetPath, "utf-8")
+            const currentContent = await readFile(targetPath, "utf-8")
             const transformedIncoming = shouldTransformFile(fileName)
               ? applyTransforms(file.content, config.aliases, config.importStyle || "alias")
               : file.content
             const changed = hasDiff(currentContent, transformedIncoming)
             if (changed) {
-              const patch = buildUnifiedDiff(targetPath, `${component.name}/${fileName}`, currentContent, transformedIncoming)
+              const patch = buildUnifiedDiff(
+                targetPath,
+                `${component.name}/${fileName}`,
+                currentContent,
+                transformedIncoming,
+              )
               console.log(formatDiffPreview(patch, 40))
             }
           }
@@ -251,9 +278,9 @@ async function processComponents(
         }
         continue
       }
-      
+
       await installComponentFiles(component, config, options.force)
-      
+
       if (component.dependencies.length > 0) {
         try {
           await installDependencies(component.dependencies)
@@ -263,21 +290,21 @@ async function processComponents(
           logger.warn("   Please install them manually if needed")
         }
       }
-      
+
       spinner.succeed(`[${position}] ${CLI_MESSAGES.status.installing(component.name, registryType)}`)
       results.push({ name: component.name, status: "success" })
-      
+
     } catch (error) {
       spinner.fail(`[${position}] ${CLI_MESSAGES.errors.failedToInstall(componentName, registryType)}`)
       logger.error(`   Error: ${(error as Error).message}`)
-      results.push({ 
-        name: componentName, 
-        status: "error", 
-        error: (error as Error).message 
+      results.push({
+        name: componentName,
+        status: "error",
+        error: (error as Error).message
       })
     }
   }
-  
+
   return results
 }
 
@@ -411,17 +438,17 @@ function displayInstallationSummary(
 ) {
   const successful = results.filter(r => r.status === "success")
   const failed = results.filter(r => r.status === "error")
-  
+
   logger.info("\n📊 Installation Summary:")
   console.log(`   Registry: ${registryType}`)
   console.log(`   ✅ Successful: ${successful.length}`)
   console.log(`   ❌ Failed: ${failed.length}`)
-  
+
   if (successful.length > 0) {
     logger.success(`\n🎉 ${CLI_MESSAGES.success.componentsInstalled}`)
     console.log("You can now import and use them in your project.")
   }
-  
+
   if (failed.length > 0) {
     process.exit(1)
   }
@@ -430,125 +457,64 @@ function displayInstallationSummary(
 async function installComponentFiles(
   component: Component,
   config: Config,
-  force = false
+  force = false,
 ): Promise<void> {
   for (const file of component.files) {
-    const fileName = path.basename(file.path)
+    const relative = resolveFileInstallPath(file, component.type, config)
+    const targetPath = path.join(process.cwd(), relative)
+    const fileName = path.basename(targetPath)
 
-    const target = file.target || inferTargetFromType(component.type)
-    const installDir = resolveInstallDir(target, config)
-    const targetPath = path.join(process.cwd(), installDir, fileName)
-
-    if (!force && await fs.pathExists(targetPath)) {
-      console.log(`   ⚠️  ${CLI_MESSAGES.status.skipped(fileName)}`) 
+    if (!force && (await pathExists(targetPath))) {
+      console.log(`   ⚠️  ${CLI_MESSAGES.status.skipped(fileName)}`)
       continue
     }
 
-    await fs.ensureDir(path.dirname(targetPath))
+    await fsEnsureDir(path.dirname(targetPath))
     const preparedContent = shouldTransformFile(fileName)
       ? applyTransforms(file.content, config.aliases, config.importStyle || "alias")
       : file.content
-    await fs.writeFile(targetPath, preparedContent, "utf-8")
+    await writeFile(targetPath, preparedContent, "utf-8")
   }
-}
-
-export function inferTargetFromType(componentType: string): string {
-  switch (componentType) {
-    case "registry:ui":
-      return "ui"
-    case "registry:composite":
-      return "components"
-    case "registry:block":
-      return "blocks"
-    case "registry:component":
-      return "components"
-    case "registry:layout":
-      return "layouts"
-    case "registry:lib":
-      return "lib"
-    case "registry:variants":
-      return "variants"
-    default:
-      return "components"
-  }
-}
-
-export function resolveInstallDir(target: string, config: Config): string {
-  const normalizedTarget = target.replace(/\\/g, "/").replace(/^\/?src\//i, "")
-
-  // lib has own root at src/lib
-  if (normalizedTarget === "lib") {
-    return normalizeDir(config.libDir || SCHEMA_CONFIG.defaultDirectories.lib)
-  }
-
-  // variants has own root at src/variants
-  if (normalizedTarget === "variants") {
-    return normalizeDir(SCHEMA_CONFIG.defaultDirectories.variants)
-  }
-
-  const baseComponentsDir = normalizeDir(config.componentsDir || SCHEMA_CONFIG.defaultDirectories.components)
-
-  // Composite targets like "components/ui" → parent(src) + target
-  if (normalizedTarget.includes("/")) {
-    const parentRoot = baseComponentsDir.replace(/[/\\]components$/i, "") || "src"
-    return path.join(parentRoot, normalizedTarget).replace(/\\/g, "/")
-  }
-
-  if (normalizedTarget === "ui") return path.join(baseComponentsDir, "ui").replace(/\\/g, "/")
-  if (normalizedTarget === "components") return baseComponentsDir
-
-  switch (normalizedTarget) {
-    case "blocks":
-      return normalizeDir(SCHEMA_CONFIG.defaultDirectories.blocks)
-    case "layouts":
-      return normalizeDir(SCHEMA_CONFIG.defaultDirectories.layouts)
-    default:
-      return baseComponentsDir
-  }
-}
-
-function normalizeDir(dir: string): string {
-  return dir.replace(/^\.\//, "").replace(/\\/g, "/")
 }
 
 function resolveRegistryType(registryInput?: string): RegistryType {
   if (!registryInput) {
     return SCHEMA_CONFIG.defaultRegistryType
   }
-  
+
   if (SCHEMA_CONFIG.registryTypes.includes(registryInput as any)) {
     return registryInput as RegistryType
   }
-  
+
   logger.warn(`⚠️  Unknown registry type: ${registryInput}`)
   console.log(`Available registries: ${SCHEMA_CONFIG.registryTypes.join(", ")}`)
   console.log(`Using default: ${SCHEMA_CONFIG.defaultRegistryType}`)
-  
+
   return SCHEMA_CONFIG.defaultRegistryType
 }
 
-async function installComponentsIndex(registryType: RegistryType, config: Config, cdnResolution: CdnResolutionOptions = {}): Promise<void> {
-  const spinner = ora("Installing components index...").start()
-  
+async function installComponentsIndex(
+  registryType: RegistryType,
+  config: Config,
+  cdnResolution: CdnResolutionOptions = {},
+): Promise<void> {
+  const spinner = new Spinner("Installing components index...").start()
+
   try {
     const cdnUrls = getCdnUrls(registryType, cdnResolution)
-    
+
     for (const baseUrl of cdnUrls) {
       try {
         const url = `${baseUrl}/components/index.json`
         const response = await fetch(url)
-        
+
         if (response.ok) {
-          const component = await response.json() as Component
-          
-          for (const file of component.files) {
-            const fileName = path.basename(file.path)
-            const targetDir = config.componentsDir
-            const targetPath = path.join(process.cwd(), targetDir, fileName)
-            await fs.ensureDir(path.dirname(targetPath))
-            await fs.writeFile(targetPath, file.content || "", "utf-8")
-          }
-          
+          const component = (await response.json()) as Component
+          await installComponentFiles(
+            { ...component, type: component.type || "registry:component" },
+            config,
+            true,
+          )
           spinner.succeed("Installed components index")
           return
         }
@@ -556,9 +522,9 @@ async function installComponentsIndex(registryType: RegistryType, config: Config
         continue
       }
     }
-    
+
     spinner.info("Components index not found in registry (optional)")
-  } catch (error) {
+  } catch {
     spinner.fail("Could not install components index")
   }
-} 
+}

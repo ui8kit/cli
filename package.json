@@ -1,16 +1,25 @@
 {
   "name": "ui8kit",
-  "version": "1.5.2",
-  "description": "A CLI for adding UI components to your Vite React projects (UI8Kit core/blocks registries)",
+  "version": "2.0.0",
+  "description": "CLI to install and maintain UI8Kit component/block registries (multi-runtime, file-based)",
   "type": "module",
   "bin": {
     "ui8kit": "./dist/index.js"
   },
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ui8kit/cli.git",
-    "directory": "."
+    "url": "git+https://github.com/ui8kit/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ui8kit/cli/issues"
   },
   "publishConfig": {
     "access": "public"
@@ -18,18 +27,23 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "cli",
     "ui",
     "components",
-    "vite",
-    "react",
     "shadcn",
     "tailwind",
     "ui8kit",
-    "core"
+    "svelte",
+    "react",
+    "solid",
+    "vue",
+    "templ",
+    "codegen",
+    "registry"
   ],
   "author": {
     "name": "ui8kit",
@@ -42,31 +56,25 @@
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "get-cdn": "node scripts/get-cdn.js",
-    "check:utility-map": "bash scripts/check-utility-map.sh",
-    "prepublishOnly": "npm run build",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "smoke": "bash scripts/smoke-cli-workflow.sh",
+    "smoke:win": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-cli-workflow.ps1",
+    "clean:artifacts": "bash scripts/node-artifact-cleaner.sh --yes",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run type-check && npm test && npm run build",
+    "test": "node scripts/run-vitest.mjs run",
+    "test:watch": "node scripts/run-vitest.mjs",
+    "pack:check": "npm pack --dry-run"
   },
   "dependencies": {
-    "chalk": "^5.3.0",
     "commander": "^11.1.0",
-    "execa": "^8.0.1",
-    "fs-extra": "^11.1.1",
-    "glob": "^10.3.10",
-    "node-fetch": "^3.3.2",
-    "diff": "^7.0.0",
-    "ora": "^7.0.1",
     "prompts": "^2.4.2",
-    "typescript": "^5.2.2",
-    "zod": "^3.22.4",
-    "zod-to-json-schema": "^3.24.5"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/fs-extra": "^11.0.4",
-    "@types/diff": "^5.2.2",
     "@types/node": "^20.8.0",
     "@types/prompts": "^2.4.9",
     "tsup": "^7.2.0",
+    "typescript": "^5.2.2",
     "vitest": "^4.0.0"
   },
   "engines": {

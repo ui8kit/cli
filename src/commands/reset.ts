@@ -1,4 +1,3 @@
-import fs from "fs-extra"
 import path from "path"
 import prompts from "prompts"
 import { logger } from "../utils/logger.js"
@@ -6,6 +5,7 @@ import { handleError } from "../utils/errors.js"
 import { clearCache } from "../utils/cache.js"
 import { SCHEMA_CONFIG } from "../utils/schema-config.js"
 import { isSafePath, getRegistryCleanTargets } from "./registry.js"
+import { pathExists, pathExistsSync, readJson, remove } from "../utils/fs.js"
 
 interface ResetOptions {
   dryRun?: boolean
@@ -55,7 +55,7 @@ export async function resetCommand(options: ResetOptions = {}) {
 
   try {
     for (const target of targets) {
-      await fs.remove(target)
+      await remove(target)
       logger.info(`removed: ${target}`)
     }
     logger.success(`Reset complete. Removed ${targets.length} path(s).`)
@@ -77,7 +77,7 @@ async function gatherResetTargets(cwd: string): Promise<string[]> {
   const discoveredTargets: string[] = []
 
   for (const target of configCandidates) {
-    if (await fs.pathExists(target)) {
+    if (await pathExists(target)) {
       discoveredTargets.push(target)
     }
   }
@@ -98,16 +98,16 @@ async function gatherResetTargets(cwd: string): Promise<string[]> {
   ]
 
   const uniqueTargets = [...new Set(allTargets)]
-  return uniqueTargets.filter((target) => isSafePath(target, normalizedCwd) && fs.pathExistsSync(target))
+  return uniqueTargets.filter((target) => isSafePath(target, normalizedCwd) && pathExistsSync(target))
 }
 
 async function readConfig(configPath?: string): Promise<ProjectConfig | null> {
-  if (!configPath || !(await fs.pathExists(configPath))) {
+  if (!configPath || !(await pathExists(configPath))) {
     return null
   }
 
   try {
-    const config = await fs.readJson(configPath)
+    const config = await readJson<Record<string, any>>(configPath)
     return {
       componentsDir: config.componentsDir,
       libDir: config.libDir
@@ -116,4 +116,3 @@ async function readConfig(configPath?: string): Promise<ProjectConfig | null> {
     return null
   }
 }
-

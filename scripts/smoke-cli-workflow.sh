@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# End-to-end smoke against local fixtures under .workflow/ (not shipped to npm).
+# Requires: .workflow/ui8kit-core + .workflow/vite-app prepared for registry scan/build.
+
 PORT="${1:-4173}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -16,6 +19,14 @@ mkdir -p "${ROOT_DIR}/.tmp"
 log_step() {
   echo "==> $1"
 }
+
+if [[ ! -d "${CORE_DIR}" || ! -d "${APP_DIR}" ]]; then
+  echo "Missing local fixtures:"
+  echo "  ${CORE_DIR}"
+  echo "  ${APP_DIR}"
+  echo "Smoke is a maintainer check; it is not required for npm publish."
+  exit 1
+fi
 
 if ! command -v npm >/dev/null 2>&1; then
   echo "npm not found in PATH"
@@ -61,18 +72,25 @@ fi
 SERVER_PID=$!
 sleep 1
 
-log_step "Running init against local registry"
-node dist/index.js --cwd "${APP_DIR}" init --yes --registry-url "${REGISTRY_URL}" --strict-cdn
+log_step "Running init against local registry (v2 contract)"
+node dist/index.js --cwd "${APP_DIR}" init --yes \
+  --framework react \
+  --dir src \
+  --registry-url "${REGISTRY_URL}" \
+  --strict-cdn
 
 log_step "Installing all components"
-node dist/index.js --cwd "${APP_DIR}" add --all --registry-url "${REGISTRY_URL}" --strict-cdn --registry ui
+node dist/index.js --cwd "${APP_DIR}" add --all \
+  --registry-url "${REGISTRY_URL}" \
+  --strict-cdn \
+  --registry ui
 
 log_step "Running smoke checks"
 node dist/index.js --cwd "${APP_DIR}" info --json
 node dist/index.js --cwd "${APP_DIR}" list --json --registry-url "${REGISTRY_URL}" --strict-cdn
 node dist/index.js --cwd "${APP_DIR}" diff --json --registry-url "${REGISTRY_URL}" --strict-cdn
 node dist/index.js --cwd "${APP_DIR}" add button --dry-run --registry-url "${REGISTRY_URL}" --strict-cdn
-node scripts/get-cdn.js --url "${REGISTRY_URL}" --path components/variants/index.json
+node scripts/get-cdn.js --url "${REGISTRY_URL}" --path index.json --path components/variants/index.json
 
 log_step "Cleaning cache and resetting app state"
 node dist/index.js --cwd "${APP_DIR}" cache clear

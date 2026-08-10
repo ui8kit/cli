@@ -1,5 +1,4 @@
 import { type ZodError } from "zod"
-import chalk from "chalk"
 import { CLI_MESSAGES } from "./cli-messages.js"
 
 export type ErrorSuggestion = string
@@ -61,27 +60,27 @@ export class NetworkError extends Ui8kitError {
 export function handleError(error: unknown): never {
   if (error instanceof Ui8kitError) {
     if (error.message) {
-      console.error(chalk.red(error.message))
+      console.error(error.message)
     }
 
     if (error.suggestion) {
-      console.log(chalk.yellow(`💡 ${error.suggestion}`))
+      console.log(`💡 ${error.suggestion}`)
     }
 
     process.exit(1)
   }
 
   if (isZodError(error)) {
-    console.error(chalk.red("❌ Configuration validation error:"))
+    console.error("❌ Configuration validation error:")
     error.errors.forEach(issue => {
       const path = issue.path.join(".") || "root"
-      console.log(chalk.yellow(`  - ${path}: ${issue.message}`))
+      console.log(`  - ${path}: ${issue.message}`)
     })
     process.exit(1)
   }
 
-  console.error(chalk.red("❌ Unexpected error:"))
-  console.error(chalk.red((error as Error).message ?? String(error)))
+  console.error("❌ Unexpected error:")
+  console.error((error as Error).message ?? String(error))
   process.exit(1)
 }
 

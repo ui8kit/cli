@@ -1,7 +1,4 @@
-import fs from "fs-extra"
 import path from "path"
-import { glob } from "glob"
-import chalk from "chalk"
 import { findConfig } from "../utils/project.js"
 import { Component, Config } from "../registry/schema.js"
 import { getAllComponents } from "../registry/api.js"
@@ -11,6 +8,8 @@ import { SCHEMA_CONFIG, type RegistryType, CdnResolutionOptions } from "../utils
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { logger } from "../utils/logger.js"
 import { handleError } from "../utils/errors.js"
+import { pathExists, readFile } from "../utils/fs.js"
+import { listFilesFlat } from "../utils/walk.js"
 
 interface DiffOptions {
   registry?: string
@@ -43,13 +42,14 @@ export async function diffCommand(componentName?: string, options: DiffOptions =
     }
     const config = await findConfig(registryType)
     const defaultConfig: Config = config ?? {
-      framework: SCHEMA_CONFIG.supportedFrameworks[0],
+      framework: "none",
       typescript: true,
       globalCss: "src/index.css",
+      dir: "src",
       aliases: SCHEMA_CONFIG.defaultAliases,
       registry: SCHEMA_CONFIG.defaultRegistry,
       componentsDir: SCHEMA_CONFIG.defaultDirectories.components,
-      libDir: SCHEMA_CONFIG.defaultDirectories.lib
+      libDir: SCHEMA_CONFIG.defaultDirectories.lib,
     }
 
     const installed = await scanLocalComponents(defaultConfig)
@@ -114,25 +114,22 @@ export async function diffCommand(componentName?: string, options: DiffOptions =
         continue
       }
 
-      const statusTitle = result.status === "update"
-        ? `${chalk.yellow("UPDATE")}`
-        : chalk.green("UP-TO-DATE")
+      const statusTitle = result.status === "update" ? "UPDATE" : "UP-TO-DATE"
       const title = `${statusTitle} ${result.component} (${result.type})`
       logger.info(title)
 
       for (const file of result.files) {
-        console.log(`  ${chalk.white(file.path)}`)
+        console.log(`  ${file.path}`)
         if (file.changed && file.diff) {
-          const preview = formatDiffPreview(file.diff, 120)
-          console.log(colorDiff(preview))
+          console.log(formatDiffPreview(file.diff, 120))
         } else {
-          console.log(chalk.dim("  No changes"))
+          console.log("  No changes")
         }
       }
     }
 
     console.log(
-      `\n${CLI_MESSAGES.info.localDiffSummary} ${chalk.yellow(updates)} component(s) have updates, ${chalk.green(upToDate)} up to date`
+      `\n${CLI_MESSAGES.info.localDiffSummary} ${updates} component(s) have updates, ${upToDate} up to date`
     )
 
     if (updates > 0) {
@@ -148,7 +145,7 @@ async function compareComponentFiles(
   remote: Component,
   config: Config
 ): Promise<Array<{ path: string; changed: boolean; diff?: string }>> {
-  const localContent = await fs.readFile(installed.filePath, "utf-8")
+  const localContent = await readFile(installed.filePath, "utf-8")
   const remoteCandidate = remote.files.find(file => {
     const candidateName = path.basename(file.path)
     return candidateName.toLowerCase() === path.basename(installed.filePath).toLowerCase()
@@ -177,15 +174,13 @@ async function scanLocalComponents(config: Config): Promise<ScannedLocalComponen
 
   const directories = [componentsUiDir, componentsDir, blocksDir, layoutsDir]
   const entries: ScannedLocalComponent[] = []
-  const patterns = directories.map(dir => path.join(dir, "*.{ts,tsx}").replace(/\\/g, "/"))
 
-  for (const pattern of patterns) {
-    const baseDir = path.dirname(pattern)
-    if (!(await fs.pathExists(baseDir))) {
+  for (const dir of directories) {
+    if (!(await pathExists(dir))) {
       continue
     }
 
-    const filePaths = await glob(pattern, { windowsPathsNoEscape: true })
+    const filePaths = await listFilesFlat(dir, { extensions: [".ts", ".tsx"] })
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath)
       if (fileName === "index.tsx" || fileName === "index.ts") {
@@ -207,21 +202,6 @@ async function scanLocalComponents(config: Config): Promise<ScannedLocalComponen
   return Array.from(uniqueByName.values())
 }
 
-function colorDiff(value: string): string {
-  return value
-    .split("\n")
-    .map(line => {
-      if (line.startsWith("+")) {
-        return chalk.green(line)
-      }
-      if (line.startsWith("-")) {
-        return chalk.red(line)
-      }
-      return line
-    })
-    .join("\n")
-}
-
 function resolveRegistryType(registryInput?: string): RegistryType {
   if (!registryInput) {
     return SCHEMA_CONFIG.defaultRegistryType
@@ -235,4 +215,3 @@ function resolveRegistryType(registryInput?: string): RegistryType {
   logger.warn(`Available registries: ${SCHEMA_CONFIG.registryTypes.join(", ")}`)
   return SCHEMA_CONFIG.defaultRegistryType
 }
-

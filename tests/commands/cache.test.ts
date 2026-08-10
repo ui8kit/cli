@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect, vi, afterEach } from "vitest"
 import { cacheClearCommand } from "../../src/commands/cache.js"
 import * as cache from "../../src/utils/cache.js"
 import { logger } from "../../src/utils/logger.js"

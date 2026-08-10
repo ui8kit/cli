@@ -1,4 +1,13 @@
-import fs from "fs-extra"
+import { mkdirSync, writeFileSync } from "node:fs"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { spawnSync } from "node:child_process"
@@ -55,14 +64,14 @@ describe("CLI integration commands", () => {
 
   const cleanup = async () => {
     if (fixtureDir) {
-      await fs.remove(fixtureDir)
+      await remove(fixtureDir)
       fixtureDir = ""
     }
   }
 
   const createFixture = () => {
     fixtureDir = tempDir()
-    fs.ensureDirSync(fixtureDir)
+    mkdirSync(fixtureDir, { recursive: true })
     return fixtureDir
   }
 
@@ -100,8 +109,8 @@ describe("CLI integration commands", () => {
     const sourcePath = path.join(cwd, "src", "components", "ui")
     const outputFile = path.join(cwd, "src", "registry.json")
 
-    await fs.ensureDir(sourcePath)
-    await fs.writeFile(
+    await ensureDir(sourcePath)
+    await writeFile(
       path.join(sourcePath, "button.tsx"),
       "export const Button = () => null\n"
     )
@@ -109,7 +118,7 @@ describe("CLI integration commands", () => {
     const result = runCli(["scan", "--source", "./src", "--output", outputFile], cwd)
 
     expect(result.status).toBe(0)
-    const registry = await fs.readJson(outputFile)
+    const registry = await readJson(outputFile)
     expect(Array.isArray(registry.items)).toBe(true)
     expect(registry.items.some((item: any) => item.name === "button" && item.type === "registry:ui")).toBe(true)
   })
@@ -121,7 +130,7 @@ describe("CLI integration commands", () => {
     const result = runCli(["scan", "--source", "./missing", "--output", outputFile], cwd)
 
     expect(result.status).toBe(0)
-    const registry = await fs.readJson(outputFile)
+    const registry = await readJson(outputFile)
     expect(Array.isArray(registry.items)).toBe(true)
     expect(registry.items.length).toBe(0)
   })
@@ -134,9 +143,9 @@ describe("CLI integration commands", () => {
     const indexFile = path.join(outputDir, "index.json")
     const generatedComponent = path.join(outputDir, "components", "ui", "button.json")
 
-    await fs.ensureDir(path.dirname(sourceFile))
-    await fs.writeFile(sourceFile, "export const Button = () => null\n")
-    await fs.writeJson(registryFile, {
+    await ensureDir(path.dirname(sourceFile))
+    await writeFile(sourceFile, "export const Button = () => null\n")
+    await writeJson(registryFile, {
       items: [
         {
           name: "button",
@@ -151,8 +160,8 @@ describe("CLI integration commands", () => {
     const result = runCli(["build", registryFile, "--output", outputDir], cwd)
 
     expect(result.status).toBe(0)
-    expect(await fs.pathExists(generatedComponent)).toBe(true)
-    expect(await fs.pathExists(indexFile)).toBe(true)
+    expect(await pathExists(generatedComponent)).toBe(true)
+    expect(await pathExists(indexFile)).toBe(true)
   })
 
   it("returns an error when build registry file is missing", () => {
@@ -172,8 +181,8 @@ describe("CLI integration commands", () => {
     const outputDir = path.join(cwd, "packages", "registry", "r")
     const missingSourcePath = "src/components/ui/missing.tsx"
 
-    await fs.ensureDir(path.dirname(registryFile))
-    await fs.writeJson(registryFile, {
+    await ensureDir(path.dirname(registryFile))
+    await writeJson(registryFile, {
       items: [
         {
           name: "missing",
@@ -220,7 +229,9 @@ describe("CLI integration commands", () => {
 
     expect(result.status).toBe(0)
     expect(output).toContain("Usage:")
-    expect(output).toContain("Initialize UI8Kit structure in your project")
+    expect(output).toContain("Initialize universal kit folders")
+    expect(output).toContain("--framework")
+    expect(output).toContain("--dir")
   })
 
   it("shows help for add command", () => {
@@ -230,7 +241,8 @@ describe("CLI integration commands", () => {
 
     expect(result.status).toBe(0)
     expect(output).toContain("Usage:")
-    expect(output).toContain("Add components to your project from the registry")
+    expect(output).toContain("Add components from the registry into app folders")
+    expect(output).toContain("--runtime")
   })
 
   it("shows help for diff command", () => {
@@ -306,7 +318,7 @@ describe("CLI integration commands", () => {
     const registryUrl = `http://127.0.0.1:${address.port}/registry`
 
     try {
-      await fs.writeJson(path.join(cwd, "package.json"), {
+      await writeJson(path.join(cwd, "package.json"), {
         name: "tmp-ui8kit-project",
         version: "1.0.0",
         dependencies: {
@@ -315,23 +327,23 @@ describe("CLI integration commands", () => {
           "tailwind-merge": "^2.3.0"
         }
       })
-      await fs.writeFile(path.join(cwd, "vite.config.ts"), "export default {}")
+      await writeFile(path.join(cwd, "vite.config.ts"), "export default {}")
 
       const initResult = runCli(["init", "--yes", "--registry-url", registryUrl], cwd)
       expect(initResult.status).toBe(0)
 
       const addResult = runCli(["add", "button", "--registry-url", registryUrl], cwd)
       expect(addResult.status).toBe(0)
-      expect(await fs.pathExists(path.join(cwd, "src", "components", "ui", "button.tsx"))).toBe(true)
+      expect(await pathExists(path.join(cwd, "src", "components", "ui", "button.tsx"))).toBe(true)
 
       const resetResult = runCli(["reset", "--yes"], cwd)
       expect(resetResult.status).toBe(0)
-      expect(await fs.pathExists(path.join(cwd, "ui8kit.config.json"))).toBe(false)
-      expect(await fs.pathExists(path.join(cwd, "src", "components", "ui", "button.tsx"))).toBe(false)
+      expect(await pathExists(path.join(cwd, "ui8kit.config.json"))).toBe(false)
+      expect(await pathExists(path.join(cwd, "src", "components", "ui", "button.tsx"))).toBe(false)
 
       const reinitResult = runCli(["init", "--yes", "--registry-url", registryUrl], cwd)
       expect(reinitResult.status).toBe(0)
-      expect(await fs.pathExists(path.join(cwd, "ui8kit.config.json"))).toBe(true)
+      expect(await pathExists(path.join(cwd, "ui8kit.config.json"))).toBe(true)
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()))
     }
@@ -349,7 +361,7 @@ describe("CLI integration commands", () => {
 
   it("runs registry clean in dry-run mode", () => {
     const cwd = createFixture()
-    fs.ensureDirSync(path.join(cwd, "packages", "registry", "r"))
+    mkdirSync(path.join(cwd, "packages", "registry", "r"), { recursive: true })
     const result = runCli(["registry", "clean", "--dry-run"], cwd)
     const output = `${result.stdout}${result.stderr}`
 
@@ -367,20 +379,20 @@ describe("CLI integration commands", () => {
     const componentFile = path.join(cacheBase, "ui", "components", "button.json")
     const componentMeta = `${componentFile}.meta.json`
 
-    fs.ensureDirSync(path.dirname(indexFile))
-    fs.writeJsonSync(indexFile, {
+    mkdirSync(path.dirname(indexFile), { recursive: true })
+    writeFileSync(indexFile, `${JSON.stringify({
       components: [{ name: "button", type: "registry:ui" }]
-    })
-    fs.writeJsonSync(indexMeta, { lastFetched: now, ttl: 3_600_000 })
-    fs.ensureDirSync(path.dirname(componentFile))
-    fs.writeJsonSync(componentFile, {
+    }, null, 2)}\n`)
+    writeFileSync(indexMeta, `${JSON.stringify({ lastFetched: now, ttl: 3_600_000 }, null, 2)}\n`)
+    mkdirSync(path.dirname(componentFile), { recursive: true })
+    writeFileSync(componentFile, `${JSON.stringify({
       name: "button",
       type: "registry:ui",
       dependencies: [],
       devDependencies: [],
       files: [{ path: "components/ui/button.tsx", content: "export const Button = () => null\n" }]
-    })
-    fs.writeJsonSync(componentMeta, { lastFetched: now, ttl: 3_600_000 })
+    }, null, 2)}\n`)
+    writeFileSync(componentMeta, `${JSON.stringify({ lastFetched: now, ttl: 3_600_000 }, null, 2)}\n`)
 
     const result = runCliWithEnv(["list", "--json"], cwd, {
       HOME: homeDir,
@@ -421,8 +433,8 @@ describe("CLI integration commands", () => {
     const cachePath = path.join(homeDir, ".ui8kit", "cache")
     const payloadPath = path.join(cachePath, "index.json")
 
-    await fs.ensureDir(path.dirname(payloadPath))
-    await fs.writeJson(payloadPath, { test: true })
+    await ensureDir(path.dirname(payloadPath))
+    await writeJson(payloadPath, { test: true })
 
     const result = runCliWithEnv(["cache", "clear"], cwd, {
       HOME: homeDir,
@@ -431,7 +443,7 @@ describe("CLI integration commands", () => {
     const output = `${result.stdout}${result.stderr}`
 
     expect(result.status).toBe(0)
-    expect(await fs.pathExists(payloadPath)).toBe(false)
+    expect(await pathExists(payloadPath)).toBe(false)
     expect(output).toContain("cache cleared successfully")
   })
 
@@ -447,7 +459,7 @@ describe("CLI integration commands", () => {
     const output = `${result.stdout}${result.stderr}`
 
     expect(result.status).toBe(0)
-    expect(await fs.pathExists(cachePath)).toBe(false)
+    expect(await pathExists(cachePath)).toBe(false)
     expect(output).toContain("cache cleared successfully")
   })
 

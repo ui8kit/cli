@@ -1,4 +1,12 @@
-import fs from "fs-extra"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import os from "os"
 import path from "path"
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
@@ -36,7 +44,7 @@ describe("cache utilities", () => {
   it("returns null for expired TTL", async () => {
     await setCachedJson("expired", { value: "old" }, { ttlMs: 1_000 })
     const metaPath = getMetaPath("expired")
-    await fs.writeJson(metaPath, {
+    await writeJson(metaPath, {
       lastFetched: Date.now() - 2_000,
       ttl: 1_000
     })
@@ -61,17 +69,17 @@ describe("cache utilities", () => {
     const dataPath = path.join(cachePath, "stored.json")
     const metaPath = `${dataPath}.meta.json`
 
-    expect(await fs.pathExists(dataPath)).toBe(true)
-    expect(await fs.pathExists(metaPath)).toBe(true)
-    expect(await fs.readJson(dataPath)).toEqual(payload)
+    expect(await pathExists(dataPath)).toBe(true)
+    expect(await pathExists(metaPath)).toBe(true)
+    expect(await readJson(dataPath)).toEqual(payload)
   })
 
   it("clears cache directory", async () => {
     await setCachedJson("toClear", { value: "x" })
-    expect(await fs.pathExists(getCacheDir())).toBe(true)
+    expect(await pathExists(getCacheDir())).toBe(true)
 
     await clearCache()
-    expect(await fs.pathExists(getCacheDir())).toBe(false)
+    expect(await pathExists(getCacheDir())).toBe(false)
   })
 
   it("bypasses cache when noCache is true", async () => {

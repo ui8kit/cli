@@ -1,11 +1,10 @@
-import chalk from "chalk"
 import { Component } from "../registry/schema.js"
 import { getAllComponents } from "../registry/api.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { logger } from "../utils/logger.js"
 import { CdnResolutionOptions, SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
 
-const LIST_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib"]
+const LIST_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils"]
 
 interface ListOptions {
   registry?: string
@@ -53,10 +52,10 @@ export async function listCommand(options: ListOptions = {}) {
     logger.info(CLI_MESSAGES.info.listingComponents)
     for (const [type, group] of sortedGroups) {
       const entries = group.sort((a, b) => a.name.localeCompare(b.name))
-      console.log(chalk.cyan(`${type} (${entries.length} components)`))
+      console.log(`${type} (${entries.length} components)`)
       for (const component of entries) {
-        const description = component.description ? chalk.dim(component.description) : ""
-        console.log(chalk.white(`  ${component.name.padEnd(14)}`) + description)
+        const description = component.description ? ` ${component.description}` : ""
+        console.log(`  ${component.name.padEnd(14)}${description}`)
       }
       console.log("")
     }
@@ -78,4 +77,3 @@ function resolveRegistryType(registryInput?: string): RegistryType {
   logger.warn(`Available registries: ${SCHEMA_CONFIG.registryTypes.join(", ")}`)
   return SCHEMA_CONFIG.defaultRegistryType
 }
-

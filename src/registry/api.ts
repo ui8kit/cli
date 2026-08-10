@@ -1,4 +1,3 @@
-import fetch from "node-fetch"
 import { Component, componentSchema } from "./schema.js"
 import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType, type CdnResolutionOptions } from "../utils/schema-config.js"
 import { logger } from "../utils/logger.js"

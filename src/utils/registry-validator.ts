@@ -1,9 +1,8 @@
-import fs from "fs-extra"
 import path from "path"
-import chalk from "chalk"
 import prompts from "prompts"
 import { findConfig } from "./project.js"
 import { initCommand } from "../commands/init.js"
+import { pathExists } from "./fs.js"
 
 export interface ValidationResult {
   isValid: boolean
@@ -47,11 +46,11 @@ export async function getUtilityComponentsByCategory(): Promise<Record<string, s
  * Validate if components can be installed in non-utility registry
  */
 export async function validateComponentInstallation(
-  components: string[], 
+  components: string[],
   registryType: string
 ): Promise<ValidationResult> {
   const packageJsonPath = path.join(process.cwd(), "package.json")
-  if (!(await fs.pathExists(packageJsonPath))) {
+  if (!(await pathExists(packageJsonPath))) {
     return {
       isValid: false,
       message: "No package.json found in the current directory. Run this command from your project root."
@@ -97,14 +96,14 @@ export async function validateComponentInstallation(
  * Show validation error and exit
  */
 export function handleValidationError(result: ValidationResult): never {
-  console.error(chalk.red("❌ Registry Validation Error:"))
-  console.error(chalk.red(result.message))
-  
+  console.error("❌ Registry Validation Error:")
+  console.error(result.message)
+
   if (result.missingComponents && result.missingComponents.length > 0) {
-    console.log(chalk.yellow("\n💡 Suggestion:"))
-    console.log(`Install missing components first: ${chalk.cyan(`npx ui8kit add ${result.missingComponents.join(' ')}`)}\n`)
+    console.log("\n💡 Suggestion:")
+    console.log(`Install missing components first: npx ui8kit add ${result.missingComponents.join(' ')}\n`)
   }
-  
+
   process.exit(1)
 }
 
@@ -113,4 +112,4 @@ export function handleValidationError(result: ValidationResult): never {
  */
 export async function showUtilityComponentsSummary(): Promise<void> {
   // Deprecated in core/form model. No summary to show.
-} 
+}

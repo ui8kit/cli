@@ -1,4 +1,12 @@
-import fs from "fs-extra"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
@@ -18,11 +26,11 @@ describe("project utilities", () => {
 
   afterEach(async () => {
     process.chdir(originalCwd)
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("finds config at project root", async () => {
-    await fs.ensureDir(fixture)
+    await ensureDir(fixture)
     const config = {
       framework: "vite-react",
       typescript: true,
@@ -32,7 +40,7 @@ describe("project utilities", () => {
       componentsDir: "./src/components",
       libDir: "./src/lib"
     }
-    await fs.writeJson(path.join(fixture, "ui8kit.config.json"), config)
+    await writeJson(path.join(fixture, "ui8kit.config.json"), config)
     process.chdir(fixture)
 
     const found = await findConfig("ui")
@@ -41,7 +49,7 @@ describe("project utilities", () => {
   })
 
   it("falls back to ./src/ for compatibility", async () => {
-    await fs.ensureDir(path.join(fixture, "src"))
+    await ensureDir(path.join(fixture, "src"))
     const config = {
       framework: "vite-react",
       typescript: true,
@@ -51,7 +59,7 @@ describe("project utilities", () => {
       componentsDir: "./src/components",
       libDir: "./src/lib"
     }
-    await fs.writeJson(path.join(fixture, "src", "ui8kit.config.json"), config)
+    await writeJson(path.join(fixture, "src", "ui8kit.config.json"), config)
     process.chdir(fixture)
 
     const found = await findConfig("ui")
@@ -59,7 +67,7 @@ describe("project utilities", () => {
   })
 
   it("returns null when config does not exist", async () => {
-    await fs.ensureDir(fixture)
+    await ensureDir(fixture)
     process.chdir(fixture)
 
     const found = await findConfig("ui")

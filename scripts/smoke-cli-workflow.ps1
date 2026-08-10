@@ -2,6 +2,8 @@ param(
   [int]$Port = 4173
 )
 
+# End-to-end smoke against local fixtures under .workflow/ (not shipped to npm).
+
 $ErrorActionPreference = "Stop"
 
 $rootDir = Split-Path -Parent $PSScriptRoot
@@ -23,6 +25,11 @@ function Stop-Server($proc) {
     Write-Step "Stopping local registry server..."
     Stop-Process -Id $proc.Id -ErrorAction SilentlyContinue
   }
+}
+
+if (-not (Test-Path $coreDir) -or -not (Test-Path $appDir)) {
+  Write-Error "Missing local fixtures under .workflow/ (ui8kit-core, vite-app). Smoke is optional for npm publish."
+  throw
 }
 
 try {
@@ -63,18 +70,25 @@ try {
   [void]$server.Start()
   Start-Sleep -Seconds 1
 
-  Write-Step "Running init against local registry"
-  & node dist/index.js --cwd $appDir init --yes --registry-url $registryUrl --strict-cdn
+  Write-Step "Running init against local registry (v2 contract)"
+  & node dist/index.js --cwd $appDir init --yes `
+    --framework react `
+    --dir src `
+    --registry-url $registryUrl `
+    --strict-cdn
 
   Write-Step "Installing all components"
-  & node dist/index.js --cwd $appDir add --all --registry-url $registryUrl --strict-cdn --registry ui
+  & node dist/index.js --cwd $appDir add --all `
+    --registry-url $registryUrl `
+    --strict-cdn `
+    --registry ui
 
   Write-Step "Running smoke checks"
   & node dist/index.js --cwd $appDir info --json
   & node dist/index.js --cwd $appDir list --json --registry-url $registryUrl --strict-cdn
   & node dist/index.js --cwd $appDir diff --json --registry-url $registryUrl --strict-cdn
   & node dist/index.js --cwd $appDir add button --dry-run --registry-url $registryUrl --strict-cdn
-  & node scripts/get-cdn.js --url $registryUrl --path components/variants/index.json
+  & node scripts/get-cdn.js --url $registryUrl --path index.json --path components/variants/index.json
 
   Write-Step "Cleaning cache and resetting app state"
   & node dist/index.js --cwd $appDir cache clear

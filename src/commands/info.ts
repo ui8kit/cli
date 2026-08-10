@@ -1,13 +1,11 @@
-import fs from "fs-extra"
 import os from "os"
 import path from "path"
-import fetch from "node-fetch"
-import chalk from "chalk"
 import { SCHEMA_CONFIG, getCdnUrls } from "../utils/schema-config.js"
 import { getRegistryCdnState } from "../registry/api.js"
 import { detectPackageManager } from "../utils/package-manager.js"
 import { getCliVersion } from "../utils/cli-version.js"
 import { getCacheDir } from "../utils/cache.js"
+import { pathExists, readJson, readdir, stat } from "../utils/fs.js"
 
 interface InfoOptions {
   json?: boolean
@@ -21,11 +19,14 @@ export async function infoCommand(options: InfoOptions = {}) {
 
   const configStatus = await readConfigStatus()
   const cache = await readCacheStatus()
-  const configOptions = configStatus.found ? {
-    registryUrl: configStatus.config.registryUrl,
-    registryVersion: configStatus.config.registryVersion,
-    strictCdn: configStatus.config.strictCdn
-  } : {}
+  const configOptions = configStatus.found
+    ? {
+        registryUrl: configStatus.config.registryUrl,
+        registryVersion: configStatus.config.registryVersion,
+        strictCdn: configStatus.config.strictCdn,
+        cdnBaseUrls: configStatus.config.cdnBaseUrls,
+      }
+    : {}
   const cdnCandidates = getCdnUrls(SCHEMA_CONFIG.defaultRegistryType, configOptions)
   const cdn = await checkPrimaryCdn(cdnCandidates)
   const cdnState = getRegistryCdnState(SCHEMA_CONFIG.defaultRegistryType, { cdn: configOptions })
@@ -58,15 +59,19 @@ export async function infoCommand(options: InfoOptions = {}) {
   console.log(`CWD     ${cwd}`)
   console.log("")
   if (configStatus.found) {
-    console.log(chalk.green(`Config  ${configStatus.path} (found)`))
+    console.log(`Config  ${configStatus.path} (found)`)
     const config = configStatus.config
     console.log(`  framework    ${config.framework}`)
     console.log(`  typescript   ${config.typescript}`)
     console.log(`  globalCss    ${config.globalCss}`)
-    console.log(`  componentsDir ${config.componentsDir}`)
-    console.log(`  libDir       ${config.libDir}`)
+    console.log(`  dir          ${config.dir}`)
+    console.log(`  runtime      ${config.runtime ?? "-"}`)
+    console.log(`  registryUrl  ${config.registryUrl ?? "-"}`)
+    console.log(`  cdnBaseUrls  ${(config.cdnBaseUrls || []).length ? config.cdnBaseUrls.join(", ") : "(defaults)"}`)
+    console.log(`  componentsDir ${config.componentsDir ?? "(derived)"}`)
+    console.log(`  libDir       ${config.libDir ?? "(derived)"}`)
   } else {
-    console.log(chalk.yellow("Config  not found"))
+    console.log("Config  not found")
   }
   console.log("")
 
@@ -98,9 +103,9 @@ async function readConfigStatus():
   ]
 
   for (const configPath of candidatePaths) {
-    if (await fs.pathExists(configPath)) {
+    if (await pathExists(configPath)) {
       try {
-        const config = await fs.readJson(configPath)
+        const config = await readJson<Record<string, any>>(configPath)
         return {
           found: true,
           path: `./${path.relative(process.cwd(), configPath).replace(/\\/g, "/")}`,
@@ -108,11 +113,14 @@ async function readConfigStatus():
             framework: config.framework ?? "unknown",
             typescript: config.typescript ?? false,
             globalCss: config.globalCss ?? "src/index.css",
+            dir: config.dir ?? SCHEMA_CONFIG.defaultDir,
+            runtime: config.runtime,
             componentsDir: config.componentsDir ?? SCHEMA_CONFIG.defaultDirectories.components,
             libDir: config.libDir ?? SCHEMA_CONFIG.defaultDirectories.lib,
             registryUrl: config.registryUrl,
             registryVersion: config.registryVersion,
-            strictCdn: config.strictCdn
+            strictCdn: config.strictCdn,
+            cdnBaseUrls: config.cdnBaseUrls,
           }
         }
       } catch {
@@ -132,7 +140,7 @@ async function readCacheStatus(): Promise<{ path: string; items: number; mb: str
   const cachePath = getCacheDir()
   let items = 0
   let bytes = 0
-  if (await fs.pathExists(cachePath)) {
+  if (await pathExists(cachePath)) {
     const result = await countCacheFiles(cachePath)
     items = result.count
     bytes = result.bytes
@@ -147,7 +155,7 @@ async function readCacheStatus(): Promise<{ path: string; items: number; mb: str
 async function countCacheFiles(dirPath: string): Promise<{ count: number; bytes: number }> {
   let count = 0
   let size = 0
-  const entries = await fs.readdir(dirPath, { withFileTypes: true })
+  const entries = await readdir(dirPath, { withFileTypes: true })
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name)
     if (entry.isDirectory()) {
@@ -158,13 +166,13 @@ async function countCacheFiles(dirPath: string): Promise<{ count: number; bytes:
     }
 
     count += 1
-    const stat = await fs.stat(fullPath)
-    size += stat.size
+    const fileStat = await stat(fullPath)
+    size += fileStat.size
   }
   return { count, bytes: size }
 }
 
-async function checkPrimaryCdn(urls: string[] = SCHEMA_CONFIG.cdnBaseUrls): Promise<{ url: string; ok: boolean }> {
+async function checkPrimaryCdn(urls: string[] = [...SCHEMA_CONFIG.cdnBaseUrls]): Promise<{ url: string; ok: boolean }> {
   const url = urls[0]
   if (!url) {
     return { url: "not configured", ok: false }

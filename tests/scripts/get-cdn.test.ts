@@ -15,7 +15,7 @@ describe("get-cdn utilities", () => {
           "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
           'https://unpkg.com/@ui8kit/registry@latest/r',
           "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r",
-        ],
+        ] as readonly string[],
       }
     `
 
@@ -24,6 +24,13 @@ describe("get-cdn utilities", () => {
       "https://unpkg.com/@ui8kit/registry@latest/r",
       "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r"
     ])
+  })
+
+  it("includes v2 default probe suffixes", () => {
+    const parsed = parseArgs([])
+    expect(parsed.suffixes).toContain("index.json")
+    expect(parsed.suffixes).toContain("lib/utils.json")
+    expect(parsed.suffixes).toContain("utils/cn.json")
   })
 
   it("normalizes relative paths by stripping leading slash and r prefix", () => {

@@ -1,4 +1,12 @@
-import fs from "fs-extra"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
@@ -18,7 +26,7 @@ describe("diff command", () => {
 
   beforeEach(async () => {
     fixture = tempDir()
-    await fs.ensureDir(fixture)
+    await ensureDir(fixture)
     process.chdir(fixture)
     output = []
     vi.spyOn(console, "log").mockImplementation((line) => {
@@ -29,7 +37,7 @@ describe("diff command", () => {
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.restoreAllMocks()
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("warns when no local components found", async () => {
@@ -44,8 +52,8 @@ describe("diff command", () => {
   it("detects up-to-date local components", async () => {
     const localContent = "export const Button = () => null\n"
     const remoteContent = localContent
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
 
     vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([
       {
@@ -66,8 +74,8 @@ describe("diff command", () => {
   it("detects changed local components", async () => {
     const localContent = "export const Button = () => null\n"
     const remoteContent = "export const Button = () => <button />\n"
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
 
     vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([
       {
@@ -88,8 +96,8 @@ describe("diff command", () => {
   it("supports JSON output format", async () => {
     const localContent = "export const Button = () => null\n"
     const remoteContent = localContent
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
 
     vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([
       {
@@ -111,8 +119,8 @@ describe("diff command", () => {
 
   it("warns when requested local component is missing", async () => {
     const localContent = "export const Button = () => null\n"
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), localContent)
     vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([
       {
         name: "button",
@@ -133,8 +141,8 @@ describe("diff command", () => {
     const getComponents = vi.spyOn(registryApi, "getAllComponents")
     getComponents.mockResolvedValue([])
 
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
 
     await diffCommand(undefined, {
       registryUrl: "https://cdn.example.com/@ui8kit/registry@latest/r",

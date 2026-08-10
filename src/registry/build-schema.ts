@@ -2,26 +2,30 @@ import { z } from "zod"
 
 export const registryItemTypeSchema = z.enum([
   "registry:lib",
-  "registry:block", 
+  "registry:utils",
+  "registry:block",
   "registry:component",
   "registry:ui",
   "registry:composite",
   "registry:layout",
-  "registry:variants"
+  "registry:variants",
+  "registry:widget",
 ])
 
 export const registryItemFileSchema = z.object({
   path: z.string(),
-  content: z.string().optional(), // Populated during build
+  content: z.string().optional(),
   target: z.string().optional(),
 })
 
 export const registryItemTailwindSchema = z.object({
-  config: z.object({
-    content: z.array(z.string()).optional(),
-    theme: z.record(z.string(), z.any()).optional(),
-    plugins: z.array(z.string()).optional(),
-  }).optional(),
+  config: z
+    .object({
+      content: z.array(z.string()).optional(),
+      theme: z.record(z.string(), z.any()).optional(),
+      plugins: z.array(z.string()).optional(),
+    })
+    .optional(),
 })
 
 export const registryItemCssVarsSchema = z.object({
@@ -36,6 +40,8 @@ export const registryItemSchema = z.object({
   type: registryItemTypeSchema,
   title: z.string().optional(),
   description: z.string().optional(),
+  runtime: z.string().optional(),
+  digest: z.string().optional(),
   dependencies: z.array(z.string()).default([]),
   devDependencies: z.array(z.string()).default([]),
   registryDependencies: z.array(z.string()).optional(),

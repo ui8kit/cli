@@ -1,4 +1,12 @@
-import fs from "fs-extra"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
@@ -18,35 +26,35 @@ describe("package manager detection", () => {
 
   afterEach(async () => {
     process.chdir(originalCwd)
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("returns bun when bun.lock exists", async () => {
-    await fs.ensureDir(fixture)
-    await fs.writeFile(path.join(fixture, "bun.lock"), "")
+    await ensureDir(fixture)
+    await writeFile(path.join(fixture, "bun.lock"), "")
     process.chdir(fixture)
 
     expect(await detectPackageManager()).toBe("bun")
   })
 
   it("returns pnpm when pnpm-lock.yaml exists", async () => {
-    await fs.ensureDir(fixture)
-    await fs.writeFile(path.join(fixture, "pnpm-lock.yaml"), "")
+    await ensureDir(fixture)
+    await writeFile(path.join(fixture, "pnpm-lock.yaml"), "")
     process.chdir(fixture)
 
     expect(await detectPackageManager()).toBe("pnpm")
   })
 
   it("returns npm fallback when no lockfiles are present", async () => {
-    await fs.ensureDir(fixture)
+    await ensureDir(fixture)
     process.chdir(fixture)
 
     expect(await detectPackageManager()).toBe("npm")
   })
 
   it("reads packageManager field from package.json", async () => {
-    await fs.ensureDir(fixture)
-    await fs.writeJson(path.join(fixture, "package.json"), {
+    await ensureDir(fixture)
+    await writeJson(path.join(fixture, "package.json"), {
       packageManager: "bun@1.2.3"
     })
     process.chdir(fixture)

@@ -3,9 +3,9 @@ export const CLI_MESSAGES = {
   // Error messages
   errors: {
     noComponentsSpecified: "Please specify at least one component to add.",
-    notInitialized: "ui8kit is not initialized in this project.",
-    notViteProject: "This doesn't appear to be a Vite project.",
-    reactNotInstalled: "React is not installed in this project.",
+    notInitialized: "ui8kit is not initialized in this project. Run: npx ui8kit init",
+    notViteProject: "Vite was not detected (optional for v2 — init no longer requires it).",
+    reactNotInstalled: "React was not detected (optional for v2 — use --framework).",
     buildFailed: "Build failed:",
     scanFailed: "Scan failed:",
     registryTempUnavailable: "registry temporarily unavailable",
@@ -71,8 +71,8 @@ export const CLI_MESSAGES = {
 
   // Prompts
   prompts: {
-    globalCss: "Where is your global CSS file?",
-    aliasComponents: "Configure import aliases?",
+    globalCss: "Where is your global CSS / Tailwind entry?",
+    aliasComponents: "Components alias (e.g. @/components)",
     overwrite: (registryName: string) =>
       `UI8Kit is already initialized for ${registryName} registry. Overwrite configuration?`,
   },

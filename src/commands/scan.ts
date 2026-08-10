@@ -1,12 +1,10 @@
-import fs from "fs-extra"
-import path from "path"
-import chalk from "chalk"
-import ora from "ora"
-import { glob } from "glob"
-import * as ts from "typescript"
+import path from "node:path"
+import { ensureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
+import { walkFiles, listFilesFlat } from "../utils/walk.js"
 import { SCHEMA_CONFIG, isExternalDependency, TYPE_TO_FOLDER } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { handleError } from "../utils/errors.js"
+import { Spinner } from "../utils/logger.js"
 
 interface ScanOptions {
   cwd: string
@@ -31,47 +29,46 @@ interface RegistryItem {
   files: ComponentFile[]
 }
 
-interface ASTAnalysis {
-  dependencies: string[]
-  devDependencies: string[]
-  description?: string
-  registryDependencies: string[]
-  hasExports: boolean
-}
-
-// Dev dependency patterns
 const DEV_PATTERNS = [
-  '@types/',
-  'eslint',
-  'prettier',
-  'typescript',
-  'jest',
-  'vitest',
-  'testing-library',
-  '@testing-library/',
-  'storybook',
-  '@storybook/',
-  'webpack',
-  'vite',
-  'rollup',
-  'babel',
-  '@babel/',
-  'postcss',
-  'tailwindcss',
-  'autoprefixer'
+  "@types/",
+  "eslint",
+  "prettier",
+  "typescript",
+  "jest",
+  "vitest",
+  "testing-library",
+  "@testing-library/",
+  "storybook",
+  "@storybook/",
+  "webpack",
+  "vite",
+  "rollup",
+  "babel",
+  "@babel/",
+  "postcss",
+  "tailwindcss",
+  "autoprefixer",
 ] as const
 
 const PACKAGE_CORE_PREFIX = "@ui8kit/core"
-const PACKAGE_STYLE_BARS = [
-  "components",
-  "layouts",
-  "blocks",
-  "variants",
-  "ui"
-] as const
-const PACKAGE_STYLE_ALIASES = ["@/components", "@/components/ui", "@/ui", "@/layouts", "@/blocks", "@/variants"]
+const PACKAGE_STYLE_BARS = ["components", "layouts", "blocks", "variants", "ui"] as const
+const PACKAGE_STYLE_ALIASES = [
+  "@/components",
+  "@/components/ui",
+  "@/ui",
+  "@/layouts",
+  "@/blocks",
+  "@/variants",
+]
 
 const REGISTRY_ALIAS_ROOTS = Object.keys(SCHEMA_CONFIG.defaultAliases)
+
+/** Match import/export module specifiers. */
+const MODULE_SPEC_RE =
+  /(?:import|export)(?:[\s\w*{}$]*?)\s+from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"]/g
+
+const NAMED_IMPORT_RE = /import\s+(?:[\w*]+\s*,\s*)?\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g
+const DEFAULT_IMPORT_RE = /import\s+(\w+)\s*(?:,\s*\{[^}]*\})?\s+from\s+['"]([^'"]+)['"]/g
 
 function toPosix(value: string): string {
   return value.replace(/\\/g, "/")
@@ -87,123 +84,122 @@ function stripImportExtension(moduleName: string): string {
 
 function getAliasMatch(moduleName: string): { alias: string; remainder: string } | null {
   const normalized = toPosix(moduleName)
-  if (!normalized.startsWith("@/")) {
-    return null
-  }
+  if (!normalized.startsWith("@/")) return null
 
-  const directMatch = REGISTRY_ALIAS_ROOTS
-    .filter(alias => normalized === alias || normalized.startsWith(`${alias}/`))
-    .sort((a, b) => b.length - a.length)[0]
+  const directMatch = REGISTRY_ALIAS_ROOTS.filter(
+    (alias) => normalized === alias || normalized.startsWith(`${alias}/`),
+  ).sort((a, b) => b.length - a.length)[0]
 
-  if (!directMatch) {
-    return null
-  }
+  if (!directMatch) return null
 
-  const remainder = normalized.slice(directMatch.length).replace(/^\/+/, "")
   return {
     alias: directMatch,
-    remainder
+    remainder: normalized.slice(directMatch.length).replace(/^\/+/, ""),
   }
 }
 
 function shouldRewriteAsRegistryDependency(aliasImport: string): boolean {
   const match = getAliasMatch(aliasImport)
-  if (!match || !match.remainder) {
-    return false
-  }
-  if (PACKAGE_STYLE_ALIASES.includes(match.alias)) {
-    return true
-  }
-
+  if (!match || !match.remainder) return false
+  if (PACKAGE_STYLE_ALIASES.includes(match.alias)) return true
   const firstSegment = match.remainder.split("/")[0]
-  return PACKAGE_STYLE_BARS.includes(firstSegment)
+  return (PACKAGE_STYLE_BARS as readonly string[]).includes(firstSegment)
 }
 
 function isUi8kitCoreImport(moduleName: string): boolean {
   return moduleName === PACKAGE_CORE_PREFIX || moduleName.startsWith(`${PACKAGE_CORE_PREFIX}/`)
 }
 
-function extractCoreImportNames(moduleName: string, node: ts.ImportDeclaration): string[] {
-  if (!isUi8kitCoreImport(moduleName)) {
-    return []
-  }
-
-  const names: string[] = []
-  const importClause = node.importClause
-  if (importClause?.name) {
-    names.push(importClause.name.text)
-  }
-
-  const namedBindings = importClause?.namedBindings
-  if (namedBindings && ts.isNamedImports(namedBindings)) {
-    namedBindings.elements.forEach(element => {
-      names.push(element.name.text)
-    })
-  }
-
-  if (moduleName.startsWith(`${PACKAGE_CORE_PREFIX}/`)) {
-    const explicitComponent = toLowerOrEmpty(stripImportExtension(moduleName.slice(PACKAGE_CORE_PREFIX.length + 1)))
-    if (explicitComponent && !names.includes(explicitComponent)) {
-      names.push(explicitComponent)
-    }
-  }
-
-  return names
-}
-
 function mapAliasImportToComponentName(moduleName: string): string | null {
   const aliasMatch = getAliasMatch(moduleName)
-  if (!aliasMatch || !aliasMatch.remainder) {
-    return null
-  }
-
-  if (!shouldRewriteAsRegistryDependency(moduleName)) {
-    return null
-  }
-
-  const componentName = stripImportExtension(aliasMatch.remainder)
-    .split("/")
-    .at(-1)
-
+  if (!aliasMatch?.remainder) return null
+  if (!shouldRewriteAsRegistryDependency(moduleName)) return null
+  const componentName = stripImportExtension(aliasMatch.remainder).split("/").at(-1)
   return componentName ? toLowerOrEmpty(componentName) : null
 }
 
-function extractRegistryDependenciesFromImport(node: ts.ImportDeclaration): string[] {
-  const moduleSpecifier = node.moduleSpecifier
-  if (!ts.isStringLiteral(moduleSpecifier)) {
-    return []
-  }
+function extractRegistryDepsFromContent(content: string): string[] {
+  const names = new Set<string>()
 
-  const moduleName = moduleSpecifier.text
-  const importedNames: string[] = []
-
-  if (isUi8kitCoreImport(moduleName)) {
-    for (const name of extractCoreImportNames(moduleName, node)) {
-      importedNames.push(toLowerOrEmpty(name))
-    }
-    return importedNames
-  }
-
-  if (moduleName.startsWith("@/")) {
-    const aliasName = mapAliasImportToComponentName(moduleName)
-    if (aliasName) {
-      importedNames.push(aliasName)
+  for (const match of content.matchAll(NAMED_IMPORT_RE)) {
+    const moduleName = match[2]
+    if (!isUi8kitCoreImport(moduleName)) continue
+    for (const part of match[1].split(",")) {
+      const name = part.trim().split(/\s+as\s+/).pop()?.trim()
+      if (name) names.add(toLowerOrEmpty(name))
     }
   }
 
-  return importedNames
+  for (const match of content.matchAll(DEFAULT_IMPORT_RE)) {
+    const moduleName = match[2]
+    if (!isUi8kitCoreImport(moduleName)) continue
+    names.add(toLowerOrEmpty(match[1]))
+  }
+
+  MODULE_SPEC_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = MODULE_SPEC_RE.exec(content)) !== null) {
+    const moduleName = m[1] || m[2]
+    if (!moduleName) continue
+    if (isUi8kitCoreImport(moduleName) && moduleName.startsWith(`${PACKAGE_CORE_PREFIX}/`)) {
+      const explicit = toLowerOrEmpty(
+        stripImportExtension(moduleName.slice(PACKAGE_CORE_PREFIX.length + 1)),
+      )
+      if (explicit) names.add(explicit)
+    }
+    if (moduleName.startsWith("@/")) {
+      const aliasName = mapAliasImportToComponentName(moduleName)
+      if (aliasName) names.add(aliasName)
+    }
+  }
+
+  return [...names]
 }
 
-function toGlobAll(dir: string): string {
-  return path.join(dir, "**/*").replace(/\\/g, "/")
+function extractNpmDepsFromContent(content: string): { deps: string[]; devDeps: string[] } {
+  const deps = new Set<string>()
+  const devDeps = new Set<string>()
+  MODULE_SPEC_RE.lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = MODULE_SPEC_RE.exec(content)) !== null) {
+    const moduleName = m[1] || m[2]
+    if (!moduleName || !isExternalDependency(moduleName)) continue
+    if (isDevDependency(moduleName)) devDeps.add(moduleName)
+    else deps.add(moduleName)
+  }
+  return { deps: [...deps], devDeps: [...devDeps] }
+}
+
+function isDevDependency(moduleName: string): boolean {
+  return DEV_PATTERNS.some((pattern) => moduleName.includes(pattern))
+}
+
+function hasValidExports(content: string): boolean {
+  return /(?:^|\n)\s*export\s/.test(content)
+}
+
+function extractDescription(content: string): string {
+  const jsdocMatch = content.match(/\/\*\*\s*\n\s*\*\s*(.+?)\s*\n\s*\*\//s)
+  if (jsdocMatch) return jsdocMatch[1].trim()
+  const commentMatch = content.match(/^\/\/\s*(.+)$/m)
+  if (commentMatch) return commentMatch[1].trim()
+  return ""
+}
+
+function getTargetFromType(type: string): string {
+  return TYPE_TO_FOLDER[type as keyof typeof TYPE_TO_FOLDER] || "components"
+}
+
+function normalizeDir(dir: string): string {
+  return dir.replace(/^\.\//, "").replace(/\\/g, "/")
 }
 
 export async function scanCommand(
-  options: { cwd?: string; registry?: string; output?: string; source?: string } = {}
+  options: { cwd?: string; registry?: string; output?: string; source?: string } = {},
 ) {
   const registryName = options.registry || SCHEMA_CONFIG.defaultRegistryType
   const registryPath = `./${registryName}`
-  
+
   const scanOptions: ScanOptions = {
     cwd: path.resolve(options.cwd || process.cwd()),
     registry: path.resolve(registryPath),
@@ -211,32 +207,48 @@ export async function scanCommand(
     sourceDir: path.resolve(options.source || "./src"),
   }
 
-  console.log(chalk.blue(`🔍 ${CLI_MESSAGES.info.scanningComponents(registryName)}`))
-  
+  console.log(CLI_MESSAGES.info.scanningComponents(registryName))
+
   try {
-    const spinner = ora(CLI_MESSAGES.info.scanningDirectories).start()
-    
-    // Resolve directories based on SCHEMA_CONFIG
-    const componentsDir = path.resolve(scanOptions.cwd, normalizeDir(SCHEMA_CONFIG.defaultDirectories.components))
+    const spinner = new Spinner(CLI_MESSAGES.info.scanningDirectories).start()
+
+    const componentsDir = path.resolve(
+      scanOptions.cwd,
+      normalizeDir(SCHEMA_CONFIG.defaultDirectories.components),
+    )
     const uiDir = path.join(componentsDir, "ui")
-    const blocksDir = path.resolve(scanOptions.cwd, normalizeDir(SCHEMA_CONFIG.defaultDirectories.blocks))
-    const layoutsDir = path.resolve(scanOptions.cwd, normalizeDir(SCHEMA_CONFIG.defaultDirectories.layouts))
+    const blocksDir = path.resolve(
+      scanOptions.cwd,
+      normalizeDir(SCHEMA_CONFIG.defaultDirectories.blocks),
+    )
+    const layoutsDir = path.resolve(
+      scanOptions.cwd,
+      normalizeDir(SCHEMA_CONFIG.defaultDirectories.layouts),
+    )
     const libDir = path.resolve(scanOptions.cwd, normalizeDir(SCHEMA_CONFIG.defaultDirectories.lib))
-    const variantsDir = path.resolve(scanOptions.cwd, normalizeDir(SCHEMA_CONFIG.defaultDirectories.variants))
-    
-    // Scan different component types
+    const variantsDir = path.resolve(
+      scanOptions.cwd,
+      normalizeDir(SCHEMA_CONFIG.defaultDirectories.variants),
+    )
+
     const uiComponents = await scanDirectory(uiDir, "registry:ui")
-    const compositeComponents = await scanDirectoryFlat(componentsDir, "registry:composite", ["index.ts"])
+    const compositeComponents = await scanDirectoryFlat(componentsDir, "registry:composite", [
+      "index.ts",
+    ])
     const variantComponents = await scanDirectory(variantsDir, "registry:variants", ["index.ts"])
     const blockComponents = await scanDirectory(blocksDir, "registry:block")
     const layoutComponents = await scanDirectory(layoutsDir, "registry:layout")
     const libComponents = await scanDirectory(libDir, "registry:lib")
-    
-    // Scan index files as special items
-    const variantsIndexItem = await scanSingleFile(path.join(variantsDir, "index.ts"), "registry:variants")
-    const componentsIndexItem = await scanSingleFile(path.join(componentsDir, "index.ts"), "registry:composite")
-    
-    // Merge and deduplicate by (type,name)
+
+    const variantsIndexItem = await scanSingleFile(
+      path.join(variantsDir, "index.ts"),
+      "registry:variants",
+    )
+    const componentsIndexItem = await scanSingleFile(
+      path.join(componentsDir, "index.ts"),
+      "registry:composite",
+    )
+
     const allComponentsRaw = [
       ...uiComponents,
       ...compositeComponents,
@@ -245,239 +257,197 @@ export async function scanCommand(
       ...(componentsIndexItem ? [componentsIndexItem] : []),
       ...blockComponents,
       ...layoutComponents,
-      ...libComponents
+      ...libComponents,
     ]
+
     const seen = new Set<string>()
     const allComponents: RegistryItem[] = []
-  const localDependencyRefs = new Map<string, Set<string>>()
+    const localDependencyRefs = new Map<string, Set<string>>()
+
     for (const comp of allComponentsRaw) {
       const key = `${comp.type}:${comp.name}`
       if (seen.has(key)) continue
       seen.add(key)
       allComponents.push(comp)
     }
-    
-    spinner.text = CLI_MESSAGES.info.analyzingDeps.replace("{count}", allComponents.length.toString())
-    
-    // Analyze each component for dependencies and devDependencies
+
+    spinner.text = CLI_MESSAGES.info.analyzingDeps.replace(
+      "{count}",
+      allComponents.length.toString(),
+    )
+
     for (const component of allComponents) {
-    const analysis = await analyzeComponentDependencies(component.files, scanOptions.cwd)
+      const analysis = await analyzeComponentDependencies(component.files, scanOptions.cwd)
       component.dependencies = analysis.dependencies
       component.devDependencies = analysis.devDependencies
-    localDependencyRefs.set(
-      `${component.type}:${component.name}`,
-      new Set(analysis.registryDependencies.map(toLowerOrEmpty))
-    )
-      
-      // Update description if found during analysis
+      localDependencyRefs.set(
+        `${component.type}:${component.name}`,
+        new Set(analysis.registryDependencies.map(toLowerOrEmpty)),
+      )
       if (analysis.description && !component.description) {
         component.description = analysis.description
       }
     }
 
-  const availableComponents = new Set(allComponents.map(item => item.name.toLowerCase()))
-  allComponents.forEach(item => {
-    const rawDependencies = localDependencyRefs.get(`${item.type}:${item.name}`) ?? new Set<string>()
-    const resolvedDependencies = new Set<string>()
-    const unresolvedDependencies: string[] = []
+    const availableComponents = new Set(allComponents.map((item) => item.name.toLowerCase()))
+    allComponents.forEach((item) => {
+      const rawDependencies =
+        localDependencyRefs.get(`${item.type}:${item.name}`) ?? new Set<string>()
+      const resolvedDependencies = new Set<string>()
+      const unresolvedDependencies: string[] = []
 
-    for (const candidate of rawDependencies) {
-      const normalized = toLowerOrEmpty(candidate)
-      if (!normalized) {
-        continue
+      for (const candidate of rawDependencies) {
+        const normalized = toLowerOrEmpty(candidate)
+        if (!normalized || normalized === item.name.toLowerCase()) continue
+        if (!availableComponents.has(normalized)) {
+          unresolvedDependencies.push(normalized)
+          continue
+        }
+        resolvedDependencies.add(normalized)
       }
-      if (normalized === item.name.toLowerCase()) {
-        continue
-      }
-      if (!availableComponents.has(normalized)) {
-        unresolvedDependencies.push(normalized)
-        continue
-      }
-      resolvedDependencies.add(normalized)
-    }
 
-    if (unresolvedDependencies.length > 0) {
-      console.warn(`⚠️  Missing local component references in ${item.name} (${item.type}): ${unresolvedDependencies.join(", ")}`)
-    }
+      if (unresolvedDependencies.length > 0) {
+        console.warn(
+          `Missing local component references in ${item.name} (${item.type}): ${unresolvedDependencies.join(", ")}`,
+        )
+      }
 
-    item.registryDependencies = Array.from(resolvedDependencies).sort()
-  })
-    
-    // Create registry with dynamic registry name
+      item.registryDependencies = Array.from(resolvedDependencies).sort()
+    })
+
     const registry = {
       $schema: "https://ui.buildy.tw/schema/registry.json",
       items: allComponents,
       version: "1.0.0",
       lastUpdated: new Date().toISOString(),
-      registry: registryName
+      registry: registryName,
     }
-    
-    // Ensure output directory exists
-    await fs.ensureDir(path.dirname(scanOptions.outputFile))
-    
-    // Write registry file
-    await fs.writeFile(scanOptions.outputFile, JSON.stringify(registry, null, 2))
-    
+
+    await ensureDir(path.dirname(scanOptions.outputFile))
+    await writeFile(scanOptions.outputFile, JSON.stringify(registry, null, 2))
+
     spinner.succeed(CLI_MESSAGES.status.scannedComponents(allComponents.length))
-    
-    console.log(chalk.green(`✅ ${CLI_MESSAGES.success.registryGenerated(registryName)}`))
+    console.log(CLI_MESSAGES.success.registryGenerated(registryName))
     console.log(`Output: ${scanOptions.outputFile}`)
-    
-    // Show summary
-    const summary = allComponents.reduce((acc, comp) => {
-      acc[comp.type] = (acc[comp.type] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
-    
-    console.log(chalk.blue("\n📊 Component Summary:"))
+
+    const summary = allComponents.reduce(
+      (acc, comp) => {
+        acc[comp.type] = (acc[comp.type] || 0) + 1
+        return acc
+      },
+      {} as Record<string, number>,
+    )
+
+    console.log("\nComponent Summary:")
     Object.entries(summary).forEach(([type, count]) => {
       console.log(`   ${type}: ${count}`)
     })
-    
-    // Show dependency summary
+
     const allDeps = new Set<string>()
     const allDevDeps = new Set<string>()
-    allComponents.forEach(comp => {
-      comp.dependencies.forEach(dep => allDeps.add(dep))
-      comp.devDependencies.forEach(dep => allDevDeps.add(dep))
+    allComponents.forEach((comp) => {
+      comp.dependencies.forEach((dep) => allDeps.add(dep))
+      comp.devDependencies.forEach((dep) => allDevDeps.add(dep))
     })
-    
-    console.log(chalk.blue("\n📦 Dependencies Summary:"))
+
+    console.log("\nDependencies Summary:")
     console.log(`   Dependencies: ${allDeps.size} unique (${Array.from(allDeps).join(", ") || "none"})`)
-    console.log(`   DevDependencies: ${allDevDeps.size} unique (${Array.from(allDevDeps).join(", ") || "none"})`)
-    
+    console.log(
+      `   DevDependencies: ${allDevDeps.size} unique (${Array.from(allDevDeps).join(", ") || "none"})`,
+    )
   } catch (error) {
     handleError(error)
   }
 }
 
-async function scanDirectory(dirPath: string, type: string, ignorePatterns: string[] = []): Promise<RegistryItem[]> {
-  if (!(await fs.pathExists(dirPath))) {
-    return []
-  }
-  
+async function scanDirectory(
+  dirPath: string,
+  type: string,
+  ignorePatterns: string[] = [],
+): Promise<RegistryItem[]> {
+  if (!(await pathExists(dirPath))) return []
+
+  const ignoreNames = ignorePatterns.map((p) => path.basename(p))
+  const files = await walkFiles(dirPath, { recursive: true, ignoreNames })
   const components: RegistryItem[] = []
-  
-  // Find all TypeScript/JavaScript files
-  const pattern = path.join(dirPath, "**/*.{ts,tsx,js,jsx}").replace(/\\/g, "/")
-  const ignore = ignorePatterns.map(p => p.replace(/\\/g, "/"))
-  const files = await glob(pattern, { windowsPathsNoEscape: true, ignore })
-  
+
   for (const filePath of files) {
     const relativePath = path.relative(process.cwd(), filePath).replace(/\\/g, "/")
     const fileName = path.basename(filePath, path.extname(filePath))
-    
-    // Skip index files and files starting with underscore
-    if (fileName === "index" || fileName.startsWith("_")) {
-      continue
-    }
-    
+    if (fileName === "index" || fileName.startsWith("_")) continue
+
     try {
-      const content = await fs.readFile(filePath, "utf-8")
-      const description = extractDescription(content)
-      
-      // Check if file has valid exports
-      if (!hasValidExports(content)) {
-        continue
-      }
-      
+      const content = await readFile(filePath, "utf-8")
+      if (!hasValidExports(content)) continue
       components.push({
         name: fileName,
         type,
-        description,
+        description: extractDescription(content),
         dependencies: [],
         devDependencies: [],
         registryDependencies: [],
-        files: [{
-          path: relativePath,
-          target: getTargetFromType(type)
-        }]
+        files: [{ path: relativePath, target: getTargetFromType(type) }],
       })
     } catch (error) {
       console.warn(`Warning: Could not process ${filePath}:`, (error as Error).message)
     }
   }
-  
+
   return components
 }
 
-async function scanDirectoryFlat(dirPath: string, type: string, ignoreFiles: string[] = []): Promise<RegistryItem[]> {
-  if (!(await fs.pathExists(dirPath))) {
-    return []
-  }
-  
+async function scanDirectoryFlat(
+  dirPath: string,
+  type: string,
+  ignoreFiles: string[] = [],
+): Promise<RegistryItem[]> {
+  if (!(await pathExists(dirPath))) return []
+
+  const files = await listFilesFlat(dirPath)
   const components: RegistryItem[] = []
-  
-  // Find only files in the root of the directory (no subdirectories)
-  const pattern = path.join(dirPath, "*.{ts,tsx,js,jsx}").replace(/\\/g, "/")
-  const files = await glob(pattern, { windowsPathsNoEscape: true })
-  
+
   for (const filePath of files) {
     const relativePath = path.relative(process.cwd(), filePath).replace(/\\/g, "/")
+    const base = path.basename(filePath)
     const fileName = path.basename(filePath, path.extname(filePath))
-    
-    // Skip specified files and files starting with underscore
-    if (ignoreFiles.includes(fileName + path.extname(filePath)) || fileName.startsWith("_")) {
-      continue
-    }
-    
+    if (ignoreFiles.includes(base) || fileName.startsWith("_")) continue
+
     try {
-      const content = await fs.readFile(filePath, "utf-8")
-      const description = extractDescription(content)
-      
-      // Check if file has valid exports
-      if (!hasValidExports(content)) {
-        continue
-      }
-      
+      const content = await readFile(filePath, "utf-8")
+      if (!hasValidExports(content)) continue
       components.push({
         name: fileName,
         type,
-        description,
+        description: extractDescription(content),
         dependencies: [],
         devDependencies: [],
         registryDependencies: [],
-        files: [{
-          path: relativePath,
-          target: getTargetFromType(type)
-        }]
+        files: [{ path: relativePath, target: getTargetFromType(type) }],
       })
     } catch (error) {
       console.warn(`Warning: Could not process ${filePath}:`, (error as Error).message)
     }
   }
-  
+
   return components
 }
 
 async function scanSingleFile(filePath: string, type: string): Promise<RegistryItem | null> {
-  if (!(await fs.pathExists(filePath))) {
-    return null
-  }
-  
+  if (!(await pathExists(filePath))) return null
+
   try {
-    const content = await fs.readFile(filePath, "utf-8")
-    const description = extractDescription(content)
-    
-    // Check if file has valid exports
-    if (!hasValidExports(content)) {
-      return null
-    }
-    
+    const content = await readFile(filePath, "utf-8")
+    if (!hasValidExports(content)) return null
     const relativePath = path.relative(process.cwd(), filePath).replace(/\\/g, "/")
     const fileName = path.basename(filePath, path.extname(filePath))
-    
     return {
       name: fileName,
       type,
-      description,
+      description: extractDescription(content),
       dependencies: [],
       devDependencies: [],
       registryDependencies: [],
-      files: [{
-        path: relativePath,
-        target: getTargetFromType(type)
-      }]
+      files: [{ path: relativePath, target: getTargetFromType(type) }],
     }
   } catch (error) {
     console.warn(`Warning: Could not process ${filePath}:`, (error as Error).message)
@@ -485,40 +455,10 @@ async function scanSingleFile(filePath: string, type: string): Promise<RegistryI
   }
 }
 
-function extractDescription(content: string): string {
-  // Look for JSDoc comment at the top of the file
-  const jsdocMatch = content.match(/\/\*\*\s*\n\s*\*\s*(.+?)\s*\n\s*\*\//s)
-  if (jsdocMatch) {
-    return jsdocMatch[1].trim()
-  }
-  
-  // Look for single line comment
-  const commentMatch = content.match(/^\/\/\s*(.+)$/m)
-  if (commentMatch) {
-    return commentMatch[1].trim()
-  }
-  
-  return ""
-}
-
-function hasValidExports(content: string): boolean {
-  const sourceFile = ts.createSourceFile("index.ts", content, ts.ScriptTarget.Latest, true)
-  let hasExports = false
-
-  function visit(node: ts.Node) {
-    if (ts.isExportDeclaration(node) || ts.isExportAssignment(node) || hasExportModifier(node)) {
-      hasExports = true
-      return
-    }
-
-    ts.forEachChild(node, visit)
-  }
-
-  visit(sourceFile)
-  return hasExports
-}
-
-async function analyzeComponentDependencies(files: ComponentFile[], cwd: string): Promise<{
+async function analyzeComponentDependencies(
+  files: ComponentFile[],
+  cwd: string,
+): Promise<{
   dependencies: string[]
   devDependencies: string[]
   description?: string
@@ -528,150 +468,30 @@ async function analyzeComponentDependencies(files: ComponentFile[], cwd: string)
   const allDevDependencies = new Set<string>()
   const allRegistryDependencies = new Set<string>()
   let description: string | undefined
-  
+
   for (const file of files) {
     try {
       const filePath = path.resolve(cwd, file.path)
-      const content = await fs.readFile(filePath, "utf-8")
-      
-      // Parse TypeScript/JavaScript to extract imports
-      const sourceFile = ts.createSourceFile(
-        file.path,
-        content,
-        ts.ScriptTarget.Latest,
-        true
-      )
-      
-      const analysis = analyzeAST(sourceFile)
-      
-      // Merge dependencies
-      analysis.dependencies.forEach(dep => allDependencies.add(dep))
-      analysis.devDependencies.forEach(dep => allDevDependencies.add(dep))
-      analysis.registryDependencies.forEach(dep => allRegistryDependencies.add(dep))
-      
-      // Use first found description
-      if (analysis.description && !description) {
-        description = analysis.description
+      const content = await readFile(filePath, "utf-8")
+      const { deps, devDeps } = extractNpmDepsFromContent(content)
+      deps.forEach((d) => allDependencies.add(d))
+      devDeps.forEach((d) => allDevDependencies.add(d))
+      extractRegistryDepsFromContent(content).forEach((d) => allRegistryDependencies.add(d))
+      if (!description) {
+        const d = extractDescription(content)
+        if (d) description = d
       }
-      
     } catch (error) {
       console.warn(CLI_MESSAGES.errors.failedToAnalyzeDeps(file.path), (error as Error).message)
     }
   }
-  
+
   return {
     dependencies: Array.from(allDependencies),
     devDependencies: Array.from(allDevDependencies),
     description,
-    registryDependencies: Array.from(allRegistryDependencies)
+    registryDependencies: Array.from(allRegistryDependencies),
   }
 }
 
-function analyzeAST(sourceFile: ts.SourceFile): ASTAnalysis {
-  const dependencies = new Set<string>()
-  const devDependencies = new Set<string>()
-  const registryDependencies = new Set<string>()
-  let description: string | undefined
-  let hasExports = false
-  
-  function visit(node: ts.Node) {
-    // Analyze imports
-    if (ts.isImportDeclaration(node)) {
-      const moduleSpecifier = node.moduleSpecifier
-      if (ts.isStringLiteral(moduleSpecifier)) {
-        const moduleName = moduleSpecifier.text
-
-        for (const name of extractRegistryDependenciesFromImport(node)) {
-          if (name) {
-            registryDependencies.add(name)
-          }
-        }
-        
-        // Add only external dependencies using the same logic as generate-registry.ts
-        if (isExternalDependency(moduleName)) {
-          // Determine if it's a dev dependency based on common patterns
-          if (isDevDependency(moduleName)) {
-            devDependencies.add(moduleName)
-          } else {
-            dependencies.add(moduleName)
-          }
-        }
-      }
-    }
-    
-    // Analyze exports
-    if (ts.isExportDeclaration(node)) {
-      hasExports = true
-    } else if (ts.isExportAssignment(node)) {
-      hasExports = true
-    } else if (hasExportModifier(node)) {
-      hasExports = true
-    }
-    
-    // Search for JSDoc comments
-    const jsDocComment = getJSDocComment(node)
-    if (jsDocComment && !description) {
-      description = jsDocComment
-    }
-    
-    ts.forEachChild(node, visit)
-  }
-  
-  visit(sourceFile)
-  
-  return {
-    dependencies: Array.from(dependencies),
-    devDependencies: Array.from(devDependencies),
-    description,
-    registryDependencies: Array.from(registryDependencies),
-    hasExports
-  }
-}
-
-function isDevDependency(moduleName: string): boolean {
-  return DEV_PATTERNS.some(pattern => moduleName.includes(pattern))
-}
-
-function hasExportModifier(node: ts.Node): boolean {
-  if ('modifiers' in node && node.modifiers) {
-    return (node.modifiers as ts.NodeArray<ts.Modifier>).some(
-      mod => mod.kind === ts.SyntaxKind.ExportKeyword
-    )
-  }
-  return false
-}
-
-function getJSDocComment(node: ts.Node): string | undefined {
-  try {
-    // Get JSDoc comments
-    const jsDocTags = ts.getJSDocCommentsAndTags(node)
-    
-    for (const tag of jsDocTags) {
-      if (ts.isJSDoc(tag) && tag.comment) {
-        if (typeof tag.comment === 'string') {
-          return tag.comment.trim()
-        } else if (Array.isArray(tag.comment)) {
-          return tag.comment.map(part => part.text).join('').trim()
-        }
-      }
-    }
-  } catch (error) {
-    // Ignore JSDoc parsing errors
-  }
-  
-  return undefined
-}
-
-function getTargetFromType(type: string): string {
-  const folder = TYPE_TO_FOLDER[type as keyof typeof TYPE_TO_FOLDER]
-  return folder || "components"
-}
-
-// TYPE_TO_FOLDER mapping:
-// - "registry:ui" → "components/ui"
-// - "registry:variants" → "variants"
-// - "registry:lib" → "lib"
-
-function normalizeDir(dir: string): string {
-  return dir.replace(/^\.\//, "").replace(/\\/g, "/")
-} 
+// TYPE_TO_FOLDER mapping used via getTargetFromType

@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.0] - 2026-08-11
+
+### Breaking
+- Multi-runtime contract **2.0.0**: `framework` is `react` | `svelte` | `vue` | `solid` | `templ` | `latte` | `twig` | `none` (no `vite-react`).
+- Install root is `dir` + canonical folders (`lib`, `utils`, `components/ui`, …) with optional `paths` remap.
+- File install preserves nested `target` / path structure (no basename flatten).
+- `init` no longer requires Vite + React; supports `--framework`, `--dir`, `--skip-core`.
+
+### Added
+- Config: `contractVersion`, `runtime`, `cdnBaseUrls`, `strictCdn`.
+- Registry types: `registry:utils`, `registry:widget`.
+- MIT `LICENSE`, publish scripts (`prepublishOnly`, `pack:check`), shebang via tsup banner.
+- CDN probe defaults include `index.json` and utils paths.
+
+### Changed
+- Package metadata, README, and maintainer scripts aligned for npm publish of the universal CLI.
+- Removed utility-map pipeline (`utility-props.map.ts` → `ui8kit.map.json`) — CLI no longer embeds kit-specific class-map generation.
+- Dropped hardcoded `cn`/clsx stub on `init` when registry is unreachable; core files come only from registry items.
+- Use Node built-in `fetch` (removed `node-fetch`).
+- Slim runtime deps to `commander`, `prompts`, `zod` only; TypeScript moved to `devDependencies`.
+- Replaced `chalk` / `ora` / `fs-extra` / `glob` / `execa` / `diff` with Node built-ins + thin `src/utils` helpers (`fs`, `walk`, `logger` Spinner, `diff-utils`).
+- `build` is registry artifact assembly only (no schema JSON codegen / AST utility-map side effects).
+
 ## [1.5.2] - 2026-03-09
 
 - Updated scripts & cdn link to `raw.githubusercontent.com/ui8kit/core`

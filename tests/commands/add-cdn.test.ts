@@ -1,9 +1,14 @@
-import fs from "fs-extra"
+import { mkdirSync } from "node:fs"
+import {
+  remove,
+  writeJson,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { addCommand } from "../../src/commands/add.js"
 import * as registryApi from "../../src/registry/api.js"
+import * as fsUtils from "../../src/utils/fs.js"
 
 function tempDir(): string {
   return path.join(os.tmpdir(), `ui8kit-add-cdn-${Date.now()}-${Math.floor(Math.random() * 10_000)}`)
@@ -13,14 +18,14 @@ describe("add command CDN option wiring", () => {
   let fixture = ""
   const originalCwd = process.cwd()
 
-  beforeEach(() => {
+  beforeEach(async () => {
     fixture = tempDir()
-    fs.ensureDirSync(fixture)
+    mkdirSync(fixture, { recursive: true })
     process.chdir(fixture)
 
-    fs.ensureDirSync(path.join(fixture, "src", "components", "ui"))
-    fs.writeJsonSync(path.join(fixture, "package.json"), { name: "test", version: "1.0.0" })
-    fs.writeJsonSync(path.join(fixture, "ui8kit.config.json"), {
+    mkdirSync(path.join(fixture, "src", "components", "ui"), { recursive: true })
+    await writeJson(path.join(fixture, "package.json"), { name: "test", version: "1.0.0" })
+    await writeJson(path.join(fixture, "ui8kit.config.json"), {
       framework: "vite-react",
       typescript: true,
       globalCss: "src/index.css",
@@ -37,7 +42,7 @@ describe("add command CDN option wiring", () => {
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.restoreAllMocks()
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("passes explicit CDN options to getComponent", async () => {
@@ -60,7 +65,7 @@ describe("add command CDN option wiring", () => {
     })
 
     expect(registryApi.getComponent).toHaveBeenCalledWith("button", "ui", {
-      excludeTypes: ["registry:variants", "registry:lib"],
+      excludeTypes: ["registry:variants", "registry:lib", "registry:utils"],
       maxRetries: 1,
       noCache: false,
       cdn: {
@@ -84,7 +89,7 @@ describe("add command CDN option wiring", () => {
 
     vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([component as any])
     vi.spyOn(registryApi, "getComponent").mockResolvedValue(component as any)
-    const ensureDirSpy = vi.spyOn(fs, "ensureDir").mockResolvedValue(undefined as never)
+    const ensureDirSpy = vi.spyOn(fsUtils, "ensureDir").mockResolvedValue(undefined as never)
 
     await addCommand(["all"], {
       all: true,
@@ -113,7 +118,7 @@ describe("add command CDN option wiring", () => {
 
     vi.spyOn(registryApi, "getAllComponents").mockResolvedValue([component as any])
     vi.spyOn(registryApi, "getComponent").mockResolvedValue(component as any)
-    const ensureDirSpy = vi.spyOn(fs, "ensureDir").mockResolvedValue(undefined as never)
+    const ensureDirSpy = vi.spyOn(fsUtils, "ensureDir").mockResolvedValue(undefined as never)
 
     await addCommand(["all"], {
       all: true,
@@ -124,4 +129,3 @@ describe("add command CDN option wiring", () => {
     expect(ensureDirSpy).not.toHaveBeenCalled()
   })
 })
-

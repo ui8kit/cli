@@ -1,310 +1,179 @@
-# ui8kit CLI
+# ui8kit CLI v2
 
-Official CLI for bootstrapping and managing UI8Kit component workflows in Vite React projects.
+Universal **shadcn-style** registry service: `init` / `add` / `list` / `diff` / `scan` / `build` — fetch registry items and **write files into your app** (not into `node_modules`). Tailwind sees classes. Works for React, Svelte, Vue, Solid, Go Templ, Latte/Twig — via `framework` / `runtime` + path contracts.
+
+Contract version: **2.0.0**
+
+## Idea
+
+```text
+registry (CDN / digest)  →  npx ui8kit add  →  {dir}/components/ui/...
+                                            →  {dir}/utils, lib, blocks, layouts, …
+```
+
+Codegen (separate) emits primitives; this CLI **installs** registry packages into app folders and can **scan/build** local registry artifacts for publishing.
 
 ## Requirements
 
-- Node.js `>=18`
-- A Vite React project (for `init` and `add`)
+- Node.js `>=18` (or Bun)
+- A project with `package.json` (created by `init` if missing)
+- **No** hard requirement for Vite/React
 
-## Quick Start
-
-```bash
-bunx ui8kit@latest init
-```
-
-Initialize with defaults (non-interactive):
+## Quick start
 
 ```bash
-bunx ui8kit@latest init --yes
+bunx ui8kit@latest init --yes --framework svelte --dir web/src
+bunx ui8kit@latest add button --runtime svelte
 ```
+
+Go / PHP apps (kit on disk for Tailwind / templ):
+
+```bash
+bunx ui8kit init --yes --framework templ --dir internal --skip-core
+bunx ui8kit add button --runtime templ --registry-url https://example.com/r
+```
+
+## Canonical folders under `{dir}`
+
+| Path | Role | Registry type |
+|------|------|----------------|
+| `lib/` | low-level runtime helpers | `registry:lib` |
+| `utils/` | shared helpers (`cn`, …) | `registry:utils` |
+| `components/` | composites | `registry:component` / `composite` |
+| `components/ui/` | **primitives** (codegen digest) | `registry:ui` |
+| `blocks/` | page sections | `registry:block` |
+| `layouts/` | chrome / shells | `registry:layout` |
+| `variants/` | variant maps | `registry:variants` |
+| `widgets/` | UI + behavior | `registry:widget` |
+
+Remap without breaking the contract:
+
+```json
+{
+  "dir": "web/src",
+  "paths": { "ui": "kit", "utils": "kit/utils" }
+}
+```
+
+## Config (`ui8kit.config.json`)
+
+```json
+{
+  "contractVersion": "2.0.0",
+  "framework": "svelte",
+  "runtime": "svelte",
+  "typescript": true,
+  "globalCss": "web/src/app.css",
+  "dir": "web/src",
+  "aliases": {
+    "@": "./web/src",
+    "@/ui": "./web/src/components/ui",
+    "@/utils": "./web/src/utils"
+  },
+  "registry": "@ui8kit",
+  "registryUrl": "https://cdn.example.com/ui8kit/r",
+  "registryVersion": "0.1.0",
+  "cdnBaseUrls": [
+    "https://cdn.example.com/ui8kit/r"
+  ],
+  "strictCdn": true,
+  "importStyle": "alias"
+}
+```
+
+### CDN resolution order
+
+1. `--registry-url` / `registryUrl`
+2. `cdnBaseUrls` from config (replaces built-in defaults when set)
+3. Built-in defaults (`unpkg` / `jsdelivr` / GitHub raw)
+
+`--strict-cdn` + explicit URL → **only** that URL.
+
+`--registry-version` rewrites `@latest` → `@0.1.0` in URL templates.
 
 ## Commands
 
 ### `init`
 
-Initialize UI8Kit structure and config in the current project.
-
 ```bash
-bunx ui8kit@latest init
-bunx ui8kit@latest init --yes
-bunx ui8kit@latest init --registry ui
+bunx ui8kit init
+bunx ui8kit init --yes --framework none --dir src
+bunx ui8kit init --yes --framework templ --dir internal --skip-core
+bunx ui8kit init --registry-url https://my-cdn/r --strict-cdn
 ```
 
-Options:
-
-- `-y, --yes` Skip prompts and use defaults
-- `-r, --registry <type>` Registry type (default: `ui`)
-- `--registry-url <url>` Override registry CDN base URL
-- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
-- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
-- `--import-style <alias|package>` Choose installed component import style (`alias` or package barrel `@ui8kit/core`; default: `alias`)
-
-When running without `--yes`, `init` now asks for:
-
-- Global CSS file path (default: `src/index.css`)
-- Import alias for components (default: `@/components`)
-- Import style for installed components (`alias` or `package`)
-
-`typescript` is always set to `true` and `framework` is fixed to `vite-react`.
-`init` now writes configuration and core utilities/variants. Empty category folders are created during bulk install (`add --all`).
+Creates `ui8kit.config.json` + canonical directories. Optionally pulls lib/utils/variants from registry.
 
 ### `add`
 
-Install one or more components from the registry.
-
 ```bash
-bunx ui8kit@latest add button
-bunx ui8kit@latest add button card
-bunx ui8kit@latest add --all
-bunx ui8kit@latest add badge --force
-bunx ui8kit@latest add button --dry-run
-bunx ui8kit@latest add --all --retry
-bunx ui8kit@latest --no-cache add button --dry-run
+bunx ui8kit add button
+bunx ui8kit add button card --force
+bunx ui8kit add --all --runtime svelte
+bunx ui8kit add button --dry-run
+bunx ui8kit add button --registry-url https://my-cdn/r --registry-version 0.1.0
 ```
 
-Calling `add` without component arguments opens an interactive multiselect list grouped by component type.
-Resolved registry dependencies are installed in dependency order automatically.
-`add` now prints progress counters for multi-component installs in the format `[n/total]`.
-`--dry-run` now also shows:
-- full target file paths
-- overwrite/create status for each file
-- registry dependency tree
-- compact diff preview for files that already exist locally
+Install **preserves nested paths** (e.g. `components/ui/button/Button.svelte`), no basename flatten.
 
-Options:
+### `list` / `diff` / `info` / `cache` / `reset` / `scan` / `build`
 
-- `-a, --all` Install all available components
-- `-f, --force` Overwrite existing files
-- `-r, --registry <type>` Registry type (default: `ui`)
-- `--dry-run` Show planned actions without writing files
-- `--all` also creates base install directories before fetching and writing components:
-  - `src/lib`
-  - `src/components`
-  - `src/components/ui`
-  - `src/blocks`
-  - `src/layouts`
-  - `src/variants`
-- `--retry` Enable retry logic for unstable connections
-- `--no-cache` (root option) bypasses cache for this run.
-- `--registry-url <url>` Override registry CDN base URL
-- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
-- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
+Same roles as v1; `info --cdn` shows resolved CDN order.
 
-### `list`
-
-List available components from the registry.
-Grouped by component type and sorted alphabetically.
-
-```bash
-bunx ui8kit@latest list
-bunx ui8kit@latest list --registry ui
-bunx ui8kit@latest list --json
-```
-
-Options:
-
-- `-r, --registry <type>` Registry type (default: `ui`)
-- `--json` Print JSON output instead of table
-- `--registry-url <url>` Override registry CDN base URL
-- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
-- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
-
-### `diff`
-
-Show differences between local components and registry versions using unified diff output.
-Useful to check which installed components are outdated.
-
-```bash
-bunx ui8kit@latest diff
-bunx ui8kit@latest diff button
-bunx ui8kit@latest diff --json
-```
-
-Options:
-
-- `[component]` Optional component name
-- `-r, --registry <type>` Registry type (default: `ui`)
-- `--json` Print diff summary as JSON
-- `--registry-url <url>` Override registry CDN base URL
-- `--registry-version <version>` Replace `@latest` in default URLs with a pinned version
-- `--strict-cdn` Disable fallback CDN providers when an explicit URL is set
-
-Examples:
-
-```bash
-bunx ui8kit@latest diff button
-```
-
-### `cache`
-
-Manage local registry cache.
-
-```bash
-bunx ui8kit@latest cache clear
-```
-
-### `info`
-
-Show local environment and configuration diagnostics.
-
-```bash
-bunx ui8kit@latest info
-bunx ui8kit@latest --no-cache info
-```
-
-Use `--no-cache` in any command to skip reading cached registry data.
-
-```bash
-bunx ui8kit@latest info --cdn
-```
-
-Use `--cdn` to print resolved CDN URL order, active cache override, and registry override settings.
-
-```bash
-bunx ui8kit@latest --no-cache diff
-bunx ui8kit@latest --no-cache list --json
-```
-
-### `registry` (utility)
-
-Commands to maintain local CLI artifacts.
-
-```bash
-bunx ui8kit@latest registry clean
-bunx ui8kit@latest registry clean --all --dry-run
-```
-
-### `reset`
-
-Remove local UI8Kit-generated project state for a full clean re-install.
-
-```bash
-bunx ui8kit@latest reset
-bunx ui8kit@latest reset --yes
-bunx ui8kit@latest reset --dry-run
-```
-
-Options:
-
-- `--dry-run` Show what will be removed
-- `-y, --yes` Skip prompts
-- `-f, --force` Skip confirmation prompt
-- `--with-cache` Also clear local cache
-
-Reset removes:
-
-- `ui8kit.config.json` (project config)
-- `src/registry.json` manifest if present
-- Component install directories (`src/components`, `src/lib`, `src/variants`, `src/layouts`, `src/blocks`)
-- Generated registry artifacts (`packages/registry/...`, `ui8kit.map.json`)
-
-### `get-cdn` (diagnostics utility)
-
-Check registry availability for each CDN source and compare payload metadata without touching installed project files.
-
-```bash
-npm run get-cdn
-npm run get-cdn -- --url https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r
-npm run get-cdn -- --path components/variants/index.json --url https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r
-```
-
-Use this before `init`/`add` when you suspect CDN propagation lag, stale `@latest` caches, or provider-specific outages.
-
-### `scan`
-
-Scan source files and generate a registry manifest.
-
-```bash
-bunx ui8kit@latest scan
-bunx ui8kit@latest scan --source ./src --output ./src/registry.json
-```
-
-Options:
-
-- `-r, --registry <type|path>` Registry type/path (default: `ui`)
-- `-o, --output <file>` Output registry file
-- `-s, --source <dir>` Source directory to scan
-
-### `build`
-
-Build a publishable registry from a registry JSON file.
-
-```bash
-bunx ui8kit@latest build
-bunx ui8kit@latest build ./src/registry.json
-bunx ui8kit@latest build ./src/registry.json --output ./packages/registry/r
-```
-
-Options:
-
-- `[registry]` Path to registry JSON (default: `./src/registry.json`)
-- `-o, --output <path>` Output directory (default: `./packages/registry/r`)
-
-The build command also generates `packages/registry/ui8kit.map.json` when
-`src/lib/utility-props.map.ts` is available.
-
-Generated map shape:
+## Registry item (contract)
 
 ```json
 {
-  "version": "1.0.0",
-  "generatedAt": "2026-03-06T12:00:00.000Z",
-  "map": [
-    "block",
-    "display-block",
-    "display-flex",
-    "m-2",
-    "m-4"
+  "name": "button",
+  "type": "registry:ui",
+  "runtime": "svelte",
+  "digest": "0.1.0",
+  "dependencies": ["clsx", "tailwind-merge"],
+  "registryDependencies": ["utils"],
+  "files": [
+    {
+      "path": "ui/button/Button.svelte",
+      "target": "components/ui/button/Button.svelte",
+      "content": "..."
+    },
+    {
+      "path": "ui/button/button.variants.json",
+      "target": "components/ui/button/button.variants.json",
+      "content": "..."
+    }
   ]
 }
 ```
 
-`map` keeps the existing top-level envelope, but the value is now a flat string
-array of Tailwind classes. The generation reads both:
+## Breaking changes (v1 → v2)
 
-- `src/lib/utility-props.map.ts` — grouped whitelist map by utility prefix.
-- `src/lib/utility-props.ts` — runtime rule source used for special
-  expansions (for example `flex` direction handling and semantic `gap` aliases).
+- `framework: "vite-react"` → `react` | `svelte` | … | `none`
+- `init` no longer requires Vite + React
+- Install paths use `{dir}/…` + optional `paths` remap
+- File install preserves relative structure (`target` / path), not basename-only
+- New types: `registry:utils`, `registry:widget`
+- Config fields: `dir`, `runtime`, `cdnBaseUrls`, `contractVersion`
 
-### Global options
+## Registry publish loop
 
-These options work for all commands and are defined at the CLI root:
+1. Author/kit digest published as registry JSON on a CDN base  
+2. Apps: `ui8kit init` + `ui8kit add --runtime … --registry-version D`  
+3. Maintainers: `ui8kit scan` → `ui8kit build` to assemble `packages/registry/r`  
+4. Tailwind `content` / `@source` points at `{dir}/**`
 
-- `-c, --cwd <dir>` Working directory for command execution (default: current directory)
-- `-v, --verbose` Enable verbose output including debug logs from registry/CDN operations
-- `--no-cache` Bypass local filesystem cache for registry lookups
-
-## Typical Flow
-
-```bash
-# 1) Initialize project
-bunx ui8kit@latest init --yes
-
-# 2) Add a component
-bunx ui8kit@latest add button
-
-# 3) Add everything from registry (optional)
-bunx ui8kit@latest add --all
-```
-
-## Local Development (this package)
-
-From `packages/cli`:
+## Development / publish
 
 ```bash
 npm install
-npm run dev
-```
-
-Build once:
-
-```bash
+npm run type-check
+npm test
 npm run build
+npm run pack:check   # dry-run tarball contents
+# npm publish        # after npm login; runs prepublishOnly
 ```
 
-Run compiled CLI locally:
+Maintainer scripts (local fixtures, CDN probe): see [scripts/README.md](scripts/README.md).
 
-```bash
-node dist/index.js --help
-```
+## License
+
+MIT

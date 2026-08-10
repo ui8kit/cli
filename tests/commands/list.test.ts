@@ -89,7 +89,7 @@ describe("list command", () => {
     })
 
     expect(getComponents).toHaveBeenCalledWith("ui", {
-      excludeTypes: ["registry:variants", "registry:lib"],
+      excludeTypes: ["registry:variants", "registry:lib", "registry:utils"],
       noCache: false,
       cdn: {
         registryUrl: "https://cdn.example.com/@ui8kit/registry@latest/r",

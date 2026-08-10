@@ -1,4 +1,13 @@
-import fs from "fs-extra"
+import { mkdirSync, writeFileSync } from "node:fs"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
@@ -16,25 +25,25 @@ describe("build command", () => {
 
   beforeEach(() => {
     fixture = tempDir()
-    fs.ensureDirSync(fixture)
+    mkdirSync(fixture, { recursive: true })
     process.chdir(fixture)
   })
 
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.restoreAllMocks()
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("generates registry artifacts for each component", async () => {
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
 
     const sourcePath = path.join(fixture, "src", "components", "ui", "button.tsx")
     const componentSource = "export const Button = () => null\n"
-    await fs.writeFile(sourcePath, componentSource)
+    await writeFile(sourcePath, componentSource)
 
     const registryPath = path.join(fixture, "src", "registry.json")
-    await fs.writeJson(registryPath, {
+    await writeJson(registryPath, {
       $schema: "https://ui.buildy.tw/schema/registry.json",
       items: [
         {
@@ -53,26 +62,26 @@ describe("build command", () => {
 
     await buildCommand(registryPath, { output: outputDir, cwd: fixture })
 
-    expect(await fs.pathExists(outputFile)).toBe(true)
-    expect(await fs.pathExists(indexFile)).toBe(true)
+    expect(await pathExists(outputFile)).toBe(true)
+    expect(await pathExists(indexFile)).toBe(true)
 
-    const payload = await fs.readJson(outputFile)
+    const payload = await readJson(outputFile)
     expect(payload.name).toBe("button")
     expect(payload.type).toBe("registry:ui")
     expect(payload.files[0].content).toBe(componentSource)
 
-    const index = await fs.readJson(indexFile)
+    const index = await readJson(indexFile)
     expect(index.components).toHaveLength(1)
     expect(index.components[0].name).toBe("button")
   })
 
   it("includes dependencies metadata in index entries", async () => {
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
-    await fs.writeFile(path.join(fixture, "src", "components", "ui", "card.tsx"), "export const Card = () => null\n")
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+    await writeFile(path.join(fixture, "src", "components", "ui", "card.tsx"), "export const Card = () => null\n")
 
     const registryPath = path.join(fixture, "src", "registry.json")
-    await fs.writeJson(registryPath, {
+    await writeJson(registryPath, {
       items: [
         {
           name: "button",
@@ -96,7 +105,7 @@ describe("build command", () => {
     const outputDir = path.join(fixture, "packages", "registry", "r")
     await buildCommand(registryPath, { output: outputDir, cwd: fixture })
 
-    const index = await fs.readJson(path.join(outputDir, "index.json"))
+    const index = await readJson(path.join(outputDir, "index.json"))
     const buttonItem = index.components.find((item: any) => item.name === "button")
     expect(buttonItem.dependencies).toEqual(["clsx"])
     expect(buttonItem.registryDependencies).toEqual(["card"])
@@ -105,20 +114,20 @@ describe("build command", () => {
   it("preserves both components/index and variants/index entries by type", async () => {
     const componentsPath = path.join(fixture, "src", "components")
     const variantsPath = path.join(fixture, "src", "variants")
-    await fs.ensureDir(path.join(componentsPath, "ui"))
-    await fs.ensureDir(variantsPath)
+    await ensureDir(path.join(componentsPath, "ui"))
+    await ensureDir(variantsPath)
 
     const componentsIndexSource = "export const ComponentsIndex = () => null\n"
     const variantsIndexSource = "export * from \"./button\"\n"
     const buttonSource = "export const Button = () => null\n"
 
-    await fs.writeFile(path.join(componentsPath, "index.ts"), componentsIndexSource)
-    await fs.writeFile(path.join(componentsPath, "ui", "layout.tsx"), componentsIndexSource)
-    await fs.writeFile(path.join(variantsPath, "index.ts"), variantsIndexSource)
-    await fs.writeFile(path.join(variantsPath, "button.ts"), buttonSource)
+    await writeFile(path.join(componentsPath, "index.ts"), componentsIndexSource)
+    await writeFile(path.join(componentsPath, "ui", "layout.tsx"), componentsIndexSource)
+    await writeFile(path.join(variantsPath, "index.ts"), variantsIndexSource)
+    await writeFile(path.join(variantsPath, "button.ts"), buttonSource)
 
     const registryPath = path.join(fixture, "src", "registry.json")
-    await fs.writeJson(registryPath, {
+    await writeJson(registryPath, {
       $schema: "https://ui.buildy.tw/schema/registry.json",
       items: [
         {
@@ -145,37 +154,29 @@ describe("build command", () => {
 
     await buildCommand(registryPath, { output: outputDir, cwd: fixture })
 
-    expect(await fs.pathExists(compositeOutput)).toBe(true)
-    expect(await fs.pathExists(variantsOutput)).toBe(true)
+    expect(await pathExists(compositeOutput)).toBe(true)
+    expect(await pathExists(variantsOutput)).toBe(true)
 
-    const compositePayload = await fs.readJson(compositeOutput)
-    const variantsPayload = await fs.readJson(variantsOutput)
+    const compositePayload = await readJson(compositeOutput)
+    const variantsPayload = await readJson(variantsOutput)
     expect(compositePayload.type).toBe("registry:composite")
     expect(variantsPayload.type).toBe("registry:variants")
 
-    const index = await fs.readJson(indexFile)
+    const index = await readJson(indexFile)
     const hasComposite = index.components.some((item: any) => item.name === "index" && item.type === "registry:composite")
     const hasVariants = index.components.some((item: any) => item.name === "index" && item.type === "registry:variants")
     expect(hasComposite).toBe(true)
     expect(hasVariants).toBe(true)
   })
 
-  it("generates ui8kit.map.json when utility map source exists", async () => {
-    await fs.ensureDir(path.join(fixture, "src", "components", "ui"))
-    await fs.ensureDir(path.join(fixture, "src", "lib"))
+  it("writes registry index.json without utility map side effects", async () => {
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
 
     const sourcePath = path.join(fixture, "src", "components", "ui", "button.tsx")
-    const componentSource = "export const Button = () => null\n"
-    await fs.writeFile(sourcePath, componentSource)
-
-    const mapSourcePath = path.join(fixture, "src", "lib", "utility-props.map.ts")
-    await fs.writeFile(
-      mapSourcePath,
-      `export default {\n        spacing: ['m-4', 'm-2', 'm-4'],\n        display: ['flex', 'block']\n      }\n`
-    )
+    await writeFile(sourcePath, "export const Button = () => null\n")
 
     const registryPath = path.join(fixture, "src", "registry.json")
-    await fs.writeJson(registryPath, {
+    await writeJson(registryPath, {
       items: [
         {
           name: "button",
@@ -188,18 +189,10 @@ describe("build command", () => {
     })
 
     const outputDir = path.join(fixture, "packages", "registry", "r")
-    const mapOutput = path.join(fixture, "packages", "registry", "ui8kit.map.json")
-
     await buildCommand(registryPath, { output: outputDir, cwd: fixture })
 
-    const payload = await fs.readJson(mapOutput)
-    expect(payload.version).toBe("1.0.0")
-    expect(payload.map).toEqual([
-      "display-block",
-      "display-flex",
-      "m-2",
-      "m-4"
-    ])
+    expect(await pathExists(path.join(outputDir, "index.json"))).toBe(true)
+    expect(await pathExists(path.join(fixture, "packages", "registry", "ui8kit.map.json"))).toBe(false)
   })
 
   it("resets cache before build", async () => {
@@ -208,11 +201,11 @@ describe("build command", () => {
 
     const sourcePath = path.join(fixture, "src", "components", "ui", "button.tsx")
     const componentSource = "export const Button = () => null\n"
-    await fs.ensureDir(path.dirname(sourcePath))
-    await fs.writeFile(sourcePath, componentSource)
+    await ensureDir(path.dirname(sourcePath))
+    await writeFile(sourcePath, componentSource)
 
     const registryPath = path.join(fixture, "src", "registry.json")
-    await fs.writeJson(registryPath, {
+    await writeJson(registryPath, {
       items: [
         {
           name: "button",

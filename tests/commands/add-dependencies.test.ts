@@ -1,4 +1,9 @@
-import fs from "fs-extra"
+import {
+  ensureDir,
+  writeJson,
+  remove,
+} from "../../src/utils/fs.js"
+import * as fsUtils from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
@@ -32,15 +37,15 @@ describe("add command nested dependencies", () => {
 
   beforeEach(async () => {
     fixture = tempDir()
-    await fs.ensureDir(fixture)
+    await ensureDir(fixture)
     process.chdir(fixture)
 
-    await fs.writeJson(path.join(fixture, "package.json"), {
+    await writeJson(path.join(fixture, "package.json"), {
       name: "test-project",
       version: "1.0.0",
       dependencies: { react: "18.3.1" }
     })
-    await fs.writeJson(path.join(fixture, "ui8kit.config.json"), {
+    await writeJson(path.join(fixture, "ui8kit.config.json"), {
       framework: "vite-react",
       typescript: true,
       globalCss: "src/index.css",
@@ -59,7 +64,7 @@ describe("add command nested dependencies", () => {
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.restoreAllMocks()
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("installs dependency components before dependents", async () => {
@@ -74,7 +79,7 @@ describe("add command nested dependencies", () => {
     })
     vi.spyOn(packageManager, "installDependencies").mockResolvedValue(undefined as never)
 
-    const writeSpy = vi.spyOn(fs, "writeFile").mockResolvedValue(undefined as never)
+    const writeSpy = vi.spyOn(fsUtils, "writeFile").mockResolvedValue(undefined as never)
 
     await addCommand(["layout"], {
       registry: "ui"

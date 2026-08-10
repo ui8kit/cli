@@ -1,4 +1,13 @@
-import fs from "fs-extra"
+import { mkdirSync, writeFileSync } from "node:fs"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
@@ -14,7 +23,7 @@ describe("registry clean", () => {
 
   beforeEach(() => {
     fixture = tempDir()
-    fs.ensureDirSync(fixture)
+    mkdirSync(fixture, { recursive: true })
     process.chdir(fixture)
     vi.restoreAllMocks()
   })
@@ -22,7 +31,7 @@ describe("registry clean", () => {
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.restoreAllMocks()
-    await fs.remove(fixture)
+    await remove(fixture)
   })
 
   it("resolves default registry artifact targets", () => {
@@ -35,13 +44,13 @@ describe("registry clean", () => {
 
   it("reports paths only and does not remove files in dry-run", async () => {
     const artifactFile = path.join(fixture, "packages", "registry", "r", "components", "ui", "button.json")
-    await fs.ensureDir(path.dirname(artifactFile))
-    await fs.writeFile(artifactFile, "content")
+    await ensureDir(path.dirname(artifactFile))
+    await writeFile(artifactFile, "content")
 
     const successSpy = vi.spyOn(console, "log").mockImplementation(() => undefined)
     await registryCleanCommand({ dryRun: true, force: true })
 
-    expect(await fs.pathExists(artifactFile)).toBe(true)
+    expect(await pathExists(artifactFile)).toBe(true)
     expect(successSpy).toHaveBeenCalled()
   })
 
@@ -50,20 +59,20 @@ describe("registry clean", () => {
     const schemaFile = path.join(fixture, "packages", "registry", "schema", "registry.json")
     const registryFile = path.join(fixture, "src", "registry.json")
     const mapFile = path.join(fixture, "packages", "registry", "ui8kit.map.json")
-    await fs.ensureDir(path.dirname(schemaFile))
-    await fs.ensureDir(path.dirname(mapFile))
-    await fs.ensureDir(path.join(fixture, "src"))
-    await fs.ensureDir(path.join(output, "components"))
-    await fs.writeFile(path.join(output, "components", "button.json"), "{}")
-    await fs.writeFile(schemaFile, "{}")
-    await fs.writeFile(mapFile, "{}")
-    await fs.writeJson(registryFile, { items: [] })
+    await ensureDir(path.dirname(schemaFile))
+    await ensureDir(path.dirname(mapFile))
+    await ensureDir(path.join(fixture, "src"))
+    await ensureDir(path.join(output, "components"))
+    await writeFile(path.join(output, "components", "button.json"), "{}")
+    await writeFile(schemaFile, "{}")
+    await writeFile(mapFile, "{}")
+    await writeJson(registryFile, { items: [] })
 
     await registryCleanCommand({ all: true, force: true })
 
-    expect(await fs.pathExists(output)).toBe(false)
-    expect(await fs.pathExists(schemaFile)).toBe(false)
-    expect(await fs.pathExists(mapFile)).toBe(false)
-    expect(await fs.pathExists(registryFile)).toBe(false)
+    expect(await pathExists(output)).toBe(false)
+    expect(await pathExists(schemaFile)).toBe(false)
+    expect(await pathExists(mapFile)).toBe(false)
+    expect(await pathExists(registryFile)).toBe(false)
   })
 })

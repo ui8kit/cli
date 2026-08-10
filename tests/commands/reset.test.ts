@@ -1,4 +1,13 @@
-import fs from "fs-extra"
+import { mkdirSync, writeFileSync } from "node:fs"
+import {
+  ensureDir,
+  pathExists,
+  readJson,
+  writeJson,
+  remove,
+  readFile,
+  writeFile,
+} from "../../src/utils/fs.js"
 import path from "path"
 import os from "os"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
@@ -16,14 +25,14 @@ describe("reset command", () => {
 
   beforeEach(() => {
     fixture = tempDir()
-    fs.ensureDirSync(fixture)
+    mkdirSync(fixture, { recursive: true })
     process.chdir(fixture)
   })
 
   afterEach(async () => {
     process.chdir(originalCwd)
     vi.restoreAllMocks()
-    await fs.remove(fixture)
+    await remove(fixture)
     process.env = originalEnv
   })
 
@@ -32,19 +41,19 @@ describe("reset command", () => {
     const registryFile = path.join(fixture, "src", "registry.json")
     const componentsDir = path.join(fixture, "src", "components")
     const outputMap = path.join(fixture, "packages", "registry", "ui8kit.map.json")
-    await fs.ensureDir(path.dirname(registryFile))
-    await fs.ensureDir(componentsDir)
-    await fs.ensureDir(path.dirname(outputMap))
-    await fs.writeFile(configPath, "{}")
-    await fs.writeFile(registryFile, "{}")
-    await fs.writeFile(path.join(componentsDir, "button.tsx"), "export const Button = () => null\n")
-    await fs.writeFile(outputMap, "{}")
+    await ensureDir(path.dirname(registryFile))
+    await ensureDir(componentsDir)
+    await ensureDir(path.dirname(outputMap))
+    await writeFile(configPath, "{}")
+    await writeFile(registryFile, "{}")
+    await writeFile(path.join(componentsDir, "button.tsx"), "export const Button = () => null\n")
+    await writeFile(outputMap, "{}")
 
     await resetCommand({ dryRun: true, yes: true })
 
-    expect(await fs.pathExists(configPath)).toBe(true)
-    expect(await fs.pathExists(registryFile)).toBe(true)
-    expect(await fs.pathExists(componentsDir)).toBe(true)
+    expect(await pathExists(configPath)).toBe(true)
+    expect(await pathExists(registryFile)).toBe(true)
+    expect(await pathExists(componentsDir)).toBe(true)
   })
 
   it("removes UI8Kit artifacts with --yes", async () => {
@@ -56,36 +65,36 @@ describe("reset command", () => {
     const libDir = path.join(fixture, "src", "lib")
     const configPath = path.join(fixture, "ui8kit.config.json")
 
-    await fs.ensureDir(path.dirname(registrySchema))
-    await fs.ensureDir(path.dirname(registryIndex))
-    await fs.ensureDir(componentDir)
-    await fs.ensureDir(libDir)
-    await fs.writeFile(registrySchema, "{}")
-    await fs.writeFile(registryIndex, "{}")
-    await fs.writeFile(outputMap, "{}")
-    await fs.writeFile(path.join(componentDir, "button.tsx"), "export const Button = () => null\n")
-    await fs.writeFile(path.join(libDir, "util.ts"), "export const util = 1\n")
-    await fs.writeFile(configPath, "{}")
+    await ensureDir(path.dirname(registrySchema))
+    await ensureDir(path.dirname(registryIndex))
+    await ensureDir(componentDir)
+    await ensureDir(libDir)
+    await writeFile(registrySchema, "{}")
+    await writeFile(registryIndex, "{}")
+    await writeFile(outputMap, "{}")
+    await writeFile(path.join(componentDir, "button.tsx"), "export const Button = () => null\n")
+    await writeFile(path.join(libDir, "util.ts"), "export const util = 1\n")
+    await writeFile(configPath, "{}")
 
     await resetCommand({ yes: true })
 
-    expect(await fs.pathExists(outputMap)).toBe(false)
-    expect(await fs.pathExists(registrySchema)).toBe(false)
-    expect(await fs.pathExists(configPath)).toBe(false)
-    expect(await fs.pathExists(registryIndex)).toBe(false)
-    expect(await fs.pathExists(componentDir)).toBe(false)
-    expect(await fs.pathExists(libDir)).toBe(false)
+    expect(await pathExists(outputMap)).toBe(false)
+    expect(await pathExists(registrySchema)).toBe(false)
+    expect(await pathExists(configPath)).toBe(false)
+    expect(await pathExists(registryIndex)).toBe(false)
+    expect(await pathExists(componentDir)).toBe(false)
+    expect(await pathExists(libDir)).toBe(false)
   })
 
   it("clears local cache when --with-cache is enabled", async () => {
     const clearSpy = vi.spyOn(cache, "clearCache").mockResolvedValue(undefined)
     const configPath = path.join(fixture, "ui8kit.config.json")
-    await fs.writeFile(configPath, "{}")
+    await writeFile(configPath, "{}")
 
     await resetCommand({ yes: true, withCache: true })
 
     expect(clearSpy).toHaveBeenCalled()
-    expect(await fs.pathExists(configPath)).toBe(false)
+    expect(await pathExists(configPath)).toBe(false)
   })
 })
 

@@ -1,6 +1,6 @@
-import fs from "fs-extra"
 import os from "os"
 import path from "path"
+import { ensureDir, pathExists, readJson, remove, writeJson } from "./fs.js"
 
 const DEFAULT_TTL_MS = 3_600_000
 
@@ -42,12 +42,12 @@ export async function getCachedJson(key: string, options: CacheOptions = {}): Pr
   }
 
   const { dataPath, metaPath } = cacheFilePath(key)
-  if (!(await fs.pathExists(dataPath)) || !(await fs.pathExists(metaPath))) {
+  if (!(await pathExists(dataPath)) || !(await pathExists(metaPath))) {
     return null
   }
 
   try {
-    const meta = await fs.readJson(metaPath) as { lastFetched?: unknown; ttl?: unknown }
+    const meta = await readJson<{ lastFetched?: unknown; ttl?: unknown }>(metaPath)
     const lastFetched = parseTimestamp(meta?.lastFetched)
     const metaTtl = parseTimestamp(meta?.ttl) ?? ttlMs
 
@@ -60,7 +60,7 @@ export async function getCachedJson(key: string, options: CacheOptions = {}): Pr
       return null
     }
 
-    return await fs.readJson(dataPath)
+    return await readJson(dataPath)
   } catch {
     return null
   }
@@ -69,10 +69,10 @@ export async function getCachedJson(key: string, options: CacheOptions = {}): Pr
 export async function setCachedJson(key: string, data: unknown, options: CacheOptions = {}): Promise<void> {
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS
   const { dataPath, metaPath } = cacheFilePath(key)
-  await fs.ensureDir(path.dirname(dataPath))
+  await ensureDir(path.dirname(dataPath))
 
-  await fs.writeJson(dataPath, data, { spaces: 2 })
-  await fs.writeJson(metaPath, {
+  await writeJson(dataPath, data, { spaces: 2 })
+  await writeJson(metaPath, {
     lastFetched: Date.now(),
     ttl: ttlMs
   })
@@ -80,8 +80,7 @@ export async function setCachedJson(key: string, data: unknown, options: CacheOp
 
 export async function clearCache(): Promise<void> {
   const cacheDir = getCacheDir()
-  if (await fs.pathExists(cacheDir)) {
-    await fs.remove(cacheDir)
+  if (await pathExists(cacheDir)) {
+    await remove(cacheDir)
   }
 }
-

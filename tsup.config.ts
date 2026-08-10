@@ -10,4 +10,7 @@ export default defineConfig({
   tsconfig: "./tsconfig.json",
   splitting: false,
   sourcemap: true,
-}) 
+  banner: {
+    js: "#!/usr/bin/env node",
+  },
+})
