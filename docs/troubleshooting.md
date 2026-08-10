@@ -34,7 +34,8 @@ ui8kit list --json
 ```
 
 - Name must match `components[].name` in `index.json` (usually lowercase)
-- Item may be filtered by `--runtime`
+- Whole item may be skipped if item `runtime` ≠ `--runtime`
+- With a multi-file brick and `--runtime`, only that stack’s files are written — check you did not expect other extensions on disk
 - Core types (`lib` / `utils` / `variants`) are hidden from default `list` but still installable via deps / init
 
 ## Files land in the wrong folder

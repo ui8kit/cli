@@ -125,6 +125,13 @@ bunx ui8kit add button --registry-url https://my-cdn/r --registry-version 0.1.0
 
 Install **preserves nested paths** (e.g. `components/ui/button/Button.svelte`), no basename flatten.
 
+**Runtime filter:** when `--runtime` or `config.runtime` is set, only that stack’s files are written, plus shared brick assets (`*.shared.ts`, `*.variants.json`). Utils/lib items are installed in full. Items that declare a different item-level `runtime` field are skipped entirely.
+
+```bash
+# Multi-file brick on CDN → only Svelte + shared land on disk
+bunx ui8kit add button --runtime svelte
+```
+
 ### `list` / `diff` / `info` / `cache` / `reset` / `scan` / `build`
 
 Same roles as v1; `info --cdn` shows resolved CDN order.

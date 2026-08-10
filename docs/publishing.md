@@ -108,9 +108,10 @@ npx ui8kit build …
 
 Options:
 
-1. **Separate packages / URL prefixes** per runtime (`…/svelte/r`, `…/react/r`)
-2. **Tagged digests** via `registryVersion` / npm dist-tags
-3. **Item-level `runtime`** field + consumer `--runtime` filter on a shared index
+1. **One JSON per brick, all stacks inside** — consumers use `--runtime` for **file-level** filter (recommended for codegen digests)
+2. **Separate packages / URL prefixes** per runtime (`…/svelte/r`, `…/react/r`)
+3. **Tagged digests** via `registryVersion` / npm dist-tags
+4. **Item-level `runtime`** field — consumer `--runtime` skips mismatched items on a shared index
 
 Prefer immutable URLs for production apps (`@0.1.0`, content-hashed paths).
 

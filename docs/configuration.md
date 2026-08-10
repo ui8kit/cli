@@ -100,7 +100,7 @@ Flags on `init` / `add` / `list` / `diff` override config for that invocation:
 | `--registry-url` | `registryUrl` |
 | `--registry-version` | `registryVersion` |
 | `--strict-cdn` | `strictCdn` |
-| `--runtime` | filter / prefer that runtime slice |
+| `--runtime` | Prefer that runtime: file-level filter (+ skip mismatched item `runtime`) |
 | `--import-style` | `importStyle` (init) |
 
 Use flags for one-off CI pins; put stable values in config for daily work.

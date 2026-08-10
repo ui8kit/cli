@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.1] - 2026-08-11
+
+### Added
+- **Runtime file filter** on `add`: `--runtime` / `config.runtime` keeps only matching stack files plus shared assets (`*.shared.ts`, `*.variants.json`). Item-level `runtime` skip is unchanged.
+- File rules: `react` → `*.tsx` (not `*.solid.tsx`); `solid` → `*.solid.tsx`; `svelte` / `vue` / `latte` / `twig` by extension; `templ` → `*.templ` + `*_templ.go` / `*_gen.go`. `registry:utils` / `lib` / `variants` are never sliced.
+
+### Docs
+- README, commands, multi-runtime scenario, and registry-format updated for file-level filtering.
+
 ## [2.0.0] - 2026-08-11
 
 ### Breaking

@@ -101,7 +101,10 @@ program
   .option("-a, --all", "Install all available components")
   .option("-f, --force", "Overwrite existing files")
   .option("-r, --registry <type>", "Registry type", "ui")
-  .option("--runtime <name>", "Only install items for this runtime")
+  .option(
+    "--runtime <name>",
+    "Install only this runtime's files (+ shared); skip items with a different runtime field",
+  )
   .option("--dry-run", "Plan without writing")
   .option("--retry", "Retry CDN requests")
   .option("--registry-url <url>", "Override registry base URL")

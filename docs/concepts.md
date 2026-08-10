@@ -29,7 +29,7 @@ Keep consumer configs and published registries aligned on the same major contrac
 | Field | Role |
 |-------|------|
 | `framework` | Project stack hint: `react` \| `svelte` \| `vue` \| `solid` \| `templ` \| `latte` \| `twig` \| `none` |
-| `runtime` | Registry slice to install when digests publish multiple stacks (often equals framework for JS) |
+| `runtime` | Registry slice / file filter when digests publish multiple stacks (often equals framework for JS) |
 
 Examples:
 

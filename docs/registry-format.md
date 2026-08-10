@@ -81,7 +81,7 @@ Example item:
 | `type` | yes | One of the `registry:*` types |
 | `files` | yes | At least one file with `path` + `content` when published |
 | `target` (per file) | recommended | Install path relative to consumer `dir` |
-| `runtime` | recommended for multi-stack digests | Filter with `--runtime` |
+| `runtime` | recommended for multi-stack digests | Filter files / skip items with `--runtime` |
 | `digest` | optional | Digest / release id |
 | `dependencies` | optional | npm deps |
 | `devDependencies` | optional | npm devDeps |
@@ -119,16 +119,19 @@ Paths in the manifest are relative to the **author package cwd** (kit repo), not
 
 ## Multi-runtime digests
 
-Publish separate items (or separate registries) per runtime:
+Two compatible approaches:
+
+1. **One item, many files** (codegen-style): `button.json` embeds React/Svelte/Vue/… sources. Consumers pass `--runtime` so the CLI writes only matching files + shared (`*.shared.ts`, `*.variants.json`).
+2. **Separate items / URL prefixes** per runtime:
 
 ```text
-/r/components/ui/button.json          # runtime: "react"
+/r/components/ui/button.json          # runtime: "react"  (item-level)
 # or versioned bases:
 https://cdn.example.com/ui8kit@0.1.0-svelte/r/...
 https://cdn.example.com/ui8kit@0.1.0-react/r/...
 ```
 
-Consumers select with `--runtime` and/or `--registry-version`.
+Consumers select with `--runtime` and/or `--registry-version`. Item-level `runtime` skips the whole package; file-level filter applies when the field is omitted and multiple stacks share one JSON.
 
 ## Validation
 

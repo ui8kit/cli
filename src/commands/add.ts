@@ -21,6 +21,7 @@ import {
 } from "../utils/paths.js"
 import { ensureDir } from "../utils/project.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
+import { filterFilesForRuntime } from "../utils/runtime-files.js"
 
 interface AddOptions {
   force?: boolean
@@ -235,16 +236,32 @@ async function processComponents(
         continue
       }
 
+      const filesForRuntime = filterFilesForRuntime(component.files, preferredRuntime, {
+        componentType: component.type,
+      })
+
+      if (preferredRuntime && filesForRuntime.length === 0) {
+        spinner.info(
+          `[${position}] skip ${component.name} (no files for runtime ${preferredRuntime})`,
+        )
+        continue
+      }
+
+      const componentForInstall = { ...component, files: filesForRuntime }
+
       if (options.dryRun) {
         spinner.succeed(`[${position}] ${CLI_MESSAGES.status.wouldInstall(component.name, registryType)}`)
         logger.info(`   Type: ${component.type}`)
+        if (preferredRuntime) {
+          logger.info(`   Runtime filter: ${preferredRuntime} (${filesForRuntime.length}/${component.files.length} files)`)
+        }
         if (component.registryDependencies && component.registryDependencies.length > 0) {
           logger.info(`   Registry deps: ${component.registryDependencies.join(" -> ")}`)
         }
-        logger.info(`   Files: ${component.files.length}`)
+        logger.info(`   Files: ${filesForRuntime.length}`)
         logger.info(`   Dependencies: ${component.dependencies.join(", ") || "none"}`)
 
-        for (const file of component.files) {
+        for (const file of filesForRuntime) {
           const targetPath = path.join(
             process.cwd(),
             resolveFileInstallPath(file, component.type, config),
@@ -279,7 +296,7 @@ async function processComponents(
         continue
       }
 
-      await installComponentFiles(component, config, options.force)
+      await installComponentFiles(componentForInstall, config, options.force)
 
       if (component.dependencies.length > 0) {
         try {

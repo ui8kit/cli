@@ -59,7 +59,7 @@ ui8kit add [components...] [options]
 | `-a, --all` | Install all listable components |
 | `-f, --force` | Overwrite existing files |
 | `-r, --registry <type>` | Registry type (default `ui`) |
-| `--runtime <name>` | Only items for this runtime |
+| `--runtime <name>` | Install only this runtime’s files (+ shared); skip items with a mismatched `runtime` field |
 | `--dry-run` | Plan only; no writes |
 | `--retry` | Retry failed CDN requests |
 | `--registry-url <url>` | Registry base override |
@@ -77,6 +77,22 @@ ui8kit add button --registry-url https://cdn.example.com/r --registry-version 0.
 ```
 
 Interactive mode (no names, no `--all`) prompts for selection when a TTY is available.
+
+### Runtime file filter
+
+Registry bricks often ship **all** stacks in one item (no per-item `runtime`). With `--runtime` / `config.runtime`, `add` keeps:
+
+| Runtime | Files kept (plus shared) |
+|---------|--------------------------|
+| `react` | `*.tsx` except `*.solid.tsx` |
+| `solid` | `*.solid.tsx` |
+| `svelte` | `*.svelte` |
+| `vue` | `*.vue` |
+| `templ` | `*.templ`, `*_templ.go`, `*_gen.go` |
+| `latte` | `*.latte` |
+| `twig` | `*.twig` / `*.html.twig` |
+
+Shared always: `*.shared.ts`, `*.variants.json`. Types `registry:utils`, `registry:lib`, `registry:variants` are never sliced. If an item sets `runtime: "svelte"` and you pass `--runtime react`, the whole item is skipped.
 
 ---
 
