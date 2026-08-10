@@ -15,7 +15,7 @@ Codegen (separate) emits primitives; this CLI **installs** registry packages int
 
 ## Requirements
 
-- Node.js `>=18` (or Bun)
+- Node.js `>=20` (or Bun)
 - A project with `package.json` (created by `init` if missing)
 - **No** hard requirement for Vite/React
 

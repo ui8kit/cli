@@ -22,6 +22,7 @@
 - Slim runtime deps to `commander`, `prompts`, `zod` only; TypeScript moved to `devDependencies`.
 - Replaced `chalk` / `ora` / `fs-extra` / `glob` / `execa` / `diff` with Node built-ins + thin `src/utils` helpers (`fs`, `walk`, `logger` Spinner, `diff-utils`).
 - `build` is registry artifact assembly only (no schema JSON codegen / AST utility-map side effects).
+- Engines / CI: Node `>=20` (Vitest 4 / rolldown need `util.styleText`; Node 18 dropped from matrix).
 
 ## [1.5.2] - 2026-03-09
 

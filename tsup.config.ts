@@ -6,7 +6,7 @@ export default defineConfig({
   dts: true,
   clean: true,
   minify: false,
-  target: "node18",
+  target: "node20",
   tsconfig: "./tsconfig.json",
   splitting: false,
   sourcemap: true,
