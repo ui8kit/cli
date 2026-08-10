@@ -4,6 +4,15 @@ Universal **shadcn-style** registry service: `init` / `add` / `list` / `diff` / 
 
 Contract version: **2.0.0**
 
+**Full documentation (English):** [docs/README.md](./docs/README.md)
+
+| Start here | |
+|------------|--|
+| [Getting started](./docs/getting-started.md) | Install + first init/add |
+| [Commands](./docs/commands.md) | Complete CLI reference |
+| [Scenarios](./docs/scenarios/) | React, Svelte, Templ, private CDN, publish, CI |
+| [Registry format](./docs/registry-format.md) | Item / index JSON contract |
+
 ## Idea
 
 ```text
@@ -173,6 +182,8 @@ npm run pack:check   # dry-run tarball contents
 ```
 
 Maintainer scripts (local fixtures, CDN probe): see [scripts/README.md](scripts/README.md).
+
+User & author guides: see [docs/README.md](docs/README.md).
 
 ## License
 
