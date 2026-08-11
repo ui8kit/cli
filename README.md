@@ -2,9 +2,10 @@
 
 Universal **shadcn-style** registry service: `init` / `add` / `list` / `diff` / `scan` / `build` — fetch registry items and **write files into your app** (not into `node_modules`). Tailwind sees classes. Works for React, Svelte, Vue, Solid, Go Templ, Latte/Twig — via `framework` / `runtime` + path contracts.
 
-Contract version: **2.0.0**
+Contract version: **2.0.0** · npm package: **`ui8kit@2.0.1`** · digest: **`@ui8kit/registry@2.0.0`**
 
-**Full documentation (English):** [docs/README.md](./docs/README.md)
+**Full documentation (English):** [docs/README.md](./docs/README.md)  
+**Agents / maintainers:** [AGENTS.md](./AGENTS.md) · project hub: [.project/README.md](./.project/README.md)
 
 | Start here | |
 |------------|--|
@@ -28,43 +29,29 @@ Codegen (separate) emits primitives; this CLI **installs** registry packages int
 - A project with `package.json` (created by `init` if missing)
 - **No** hard requirement for Vite/React
 
-## Quick start
+## New app — utils + UI (recommended)
+
+Published digest: `@ui8kit/registry@2.0.0` (`/r` on unpkg / jsDelivr).
+
+> **Important (ui8kit@2.0.1):** `registry:utils` is hidden from `add` / `--all` and is **not** pulled via `registryDependencies` yet. Install utils through **`init` (do not pass `--skip-core`)**. A CLI fix is planned; until then follow this recipe.
+
+### 1. Init (installs utils from CDN)
 
 ```bash
-bunx ui8kit@latest init --yes --framework svelte --dir web/src
-bunx ui8kit@latest add button --runtime svelte
+# Svelte example — omit --skip-core so core utils land under src/utils
+bunx ui8kit@2.0.1 init --yes \
+  --framework svelte \
+  --runtime svelte \
+  --dir src \
+  --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r \
+  --strict-cdn
 ```
 
-Go / PHP apps (kit on disk for Tailwind / templ):
+Confirm: `src/utils/cn.ts` (and friends) exist. If the folder is empty, re-run init without `--skip-core` or fetch utils manually (see below).
 
-```bash
-bunx ui8kit init --yes --framework templ --dir internal --skip-core
-bunx ui8kit add button --runtime templ --registry-url https://example.com/r
-```
+### 2. Fill `ui8kit.config.json`
 
-## Canonical folders under `{dir}`
-
-| Path | Role | Registry type |
-|------|------|----------------|
-| `lib/` | low-level runtime helpers | `registry:lib` |
-| `utils/` | shared helpers (`cn`, …) | `registry:utils` |
-| `components/` | composites | `registry:component` / `composite` |
-| `components/ui/` | **primitives** (codegen digest) | `registry:ui` |
-| `blocks/` | page sections | `registry:block` |
-| `layouts/` | chrome / shells | `registry:layout` |
-| `variants/` | variant maps | `registry:variants` |
-| `widgets/` | UI + behavior | `registry:widget` |
-
-Remap without breaking the contract:
-
-```json
-{
-  "dir": "web/src",
-  "paths": { "ui": "kit", "utils": "kit/utils" }
-}
-```
-
-## Config (`ui8kit.config.json`)
+After init, edit to pin CDN + runtime (example for Vite/Svelte under `src/`):
 
 ```json
 {
@@ -72,21 +59,118 @@ Remap without breaking the contract:
   "framework": "svelte",
   "runtime": "svelte",
   "typescript": true,
-  "globalCss": "web/src/app.css",
-  "dir": "web/src",
+  "globalCss": "src/app.css",
+  "dir": "src",
   "aliases": {
-    "@": "./web/src",
-    "@/ui": "./web/src/components/ui",
-    "@/utils": "./web/src/utils"
+    "@": "./src",
+    "@/ui": "./src/components/ui",
+    "@/utils": "./src/utils"
   },
   "registry": "@ui8kit",
-  "registryUrl": "https://cdn.example.com/ui8kit/r",
-  "registryVersion": "0.1.0",
-  "cdnBaseUrls": [
-    "https://cdn.example.com/ui8kit/r"
-  ],
+  "registryUrl": "https://unpkg.com/@ui8kit/registry@2.0.0/r",
+  "registryVersion": "2.0.0",
   "strictCdn": true,
   "importStyle": "alias"
+}
+```
+
+**Path remap note:** bricks import `../../utils`. Keep utils at `{dir}/utils`. If you want MentorYChat-style `src/kit`, set `"paths": { "ui": "kit" }` in config for documentation — **in 2.0.1 `paths` is ignored when registry files set `target`** (they still install under `components/ui`). Workaround: after `add`, move `src/components/ui/*` → `src/kit/` and leave `src/utils` in place. Do **not** set `"utils": "kit/utils"` without rewriting imports.
+
+### 3. Add UI (runtime file filter)
+
+```bash
+bunx ui8kit@2.0.1 add button stack title text --runtime svelte --force
+# or everything:
+bunx ui8kit@2.0.1 add --all --runtime svelte --force
+```
+
+`--runtime svelte` keeps `.svelte` + `*.shared.ts` + `*.variants.json` only.
+
+Also install npm peers used by utils if missing:
+
+```bash
+bun add clsx tailwind-merge
+# or: npm install clsx tailwind-merge
+```
+
+### Manual utils fallback (if init skipped core)
+
+```bash
+# Download item JSON and write files[] into {dir} by each file.target
+curl -sL https://unpkg.com/@ui8kit/registry@2.0.0/r/utils/utils.json
+# → write each files[].content to src/{files[].target}
+```
+
+Or with Node one-liner from app root (after `init` created `src/`):
+
+```bash
+node --input-type=module -e "
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+const item = await fetch('https://unpkg.com/@ui8kit/registry@2.0.0/r/utils/utils.json').then(r => r.json());
+for (const f of item.files) {
+  const target = path.join('src', f.target);
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, f.content);
+  console.log('wrote', target);
+}
+"
+```
+
+## Quick start (short)
+
+```bash
+bunx ui8kit@2.0.1 init --yes --framework svelte --runtime svelte --dir src \
+  --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
+bunx ui8kit@2.0.1 add button --runtime svelte --force
+```
+
+Go / PHP (kit on disk). Prefer **with** core utils unless you only need markup:
+
+```bash
+bunx ui8kit@2.0.1 init --yes --framework templ --runtime templ --dir internal \
+  --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
+bunx ui8kit@2.0.1 add button --runtime templ --force
+```
+
+## Canonical folders under `{dir}`
+
+| Path | Role | Registry type |
+|------|------|----------------|
+| `lib/` | low-level runtime helpers | `registry:lib` |
+| `utils/` | shared helpers (`cn`, …) — **required by primitives** | `registry:utils` |
+| `components/` | composites | `registry:component` / `composite` |
+| `components/ui/` | **primitives** (codegen digest) | `registry:ui` |
+| `blocks/` | page sections | `registry:block` |
+| `layouts/` | chrome / shells | `registry:layout` |
+| `variants/` | variant maps | `registry:variants` |
+| `widgets/` | UI + behavior | `registry:widget` |
+
+Safe remap intent (utils stay top-level under `dir`):
+
+```json
+{
+  "dir": "src",
+  "paths": { "ui": "kit" }
+}
+```
+
+Avoid `"utils": "kit/utils"` until the CLI rewrites relative imports (not in 2.0.1).
+
+## Config (`ui8kit.config.json`)
+
+See the filled example in [New app — utils + UI](#new-app--utils--ui-recommended). Private CDN:
+
+```json
+{
+  "contractVersion": "2.0.0",
+  "framework": "react",
+  "runtime": "react",
+  "dir": "src",
+  "globalCss": "src/app.css",
+  "registryUrl": "https://cdn.example.com/ui8kit/r",
+  "registryVersion": "2.0.0",
+  "strictCdn": true
 }
 ```
 
@@ -94,11 +178,11 @@ Remap without breaking the contract:
 
 1. `--registry-url` / `registryUrl`
 2. `cdnBaseUrls` from config (replaces built-in defaults when set)
-3. Built-in defaults (`unpkg` / `jsdelivr` / GitHub raw)
+3. Built-in defaults (`unpkg` / `jsdelivr` for `@ui8kit/registry@latest/r`)
 
 `--strict-cdn` + explicit URL → **only** that URL.
 
-`--registry-version` rewrites `@latest` → `@0.1.0` in URL templates.
+`--registry-version` rewrites `@latest` → `@2.0.0` in URL templates when applicable.
 
 ## Commands
 
@@ -107,11 +191,11 @@ Remap without breaking the contract:
 ```bash
 bunx ui8kit init
 bunx ui8kit init --yes --framework none --dir src
-bunx ui8kit init --yes --framework templ --dir internal --skip-core
-bunx ui8kit init --registry-url https://my-cdn/r --strict-cdn
+bunx ui8kit init --yes --framework templ --dir internal
+bunx ui8kit init --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
 ```
 
-Creates `ui8kit.config.json` + canonical directories. Optionally pulls lib/utils/variants from registry.
+Creates `ui8kit.config.json` + canonical directories. **Without `--skip-core`**, pulls lib/utils/variants from the registry when present (this is how you get **utils** today).
 
 ### `add`
 
@@ -120,17 +204,19 @@ bunx ui8kit add button
 bunx ui8kit add button card --force
 bunx ui8kit add --all --runtime svelte
 bunx ui8kit add button --dry-run
-bunx ui8kit add button --registry-url https://my-cdn/r --registry-version 0.1.0
+bunx ui8kit add button --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
 ```
 
 Install **preserves nested paths** (e.g. `components/ui/button/Button.svelte`), no basename flatten.
 
-**Runtime filter:** when `--runtime` or `config.runtime` is set, only that stack’s files are written, plus shared brick assets (`*.shared.ts`, `*.variants.json`). Utils/lib items are installed in full. Items that declare a different item-level `runtime` field are skipped entirely.
+**Runtime filter:** when `--runtime` or `config.runtime` is set, only that stack’s files are written, plus shared brick assets (`*.shared.ts`, `*.variants.json`). Utils/lib items are installed in full when reachable. Items that declare a different item-level `runtime` field are skipped entirely.
 
 ```bash
 # Multi-file brick on CDN → only Svelte + shared land on disk
 bunx ui8kit add button --runtime svelte
 ```
+
+Known gap: `ui8kit add utils` fails in 2.0.1 — use init core install or the [manual fallback](#manual-utils-fallback-if-init-skipped-core).
 
 ### `list` / `diff` / `info` / `cache` / `reset` / `scan` / `build`
 
@@ -142,10 +228,9 @@ Same roles as v1; `info --cdn` shows resolved CDN order.
 {
   "name": "button",
   "type": "registry:ui",
-  "runtime": "svelte",
-  "digest": "0.1.0",
-  "dependencies": ["clsx", "tailwind-merge"],
-  "registryDependencies": ["utils"],
+  "digest": "2.0.0",
+  "dependencies": [],
+  "registryDependencies": ["utils", "slot"],
   "files": [
     {
       "path": "ui/button/Button.svelte",
@@ -172,9 +257,9 @@ Same roles as v1; `info --cdn` shows resolved CDN order.
 
 ## Registry publish loop
 
-1. Author/kit digest published as registry JSON on a CDN base  
-2. Apps: `ui8kit init` + `ui8kit add --runtime … --registry-version D`  
-3. Maintainers: `ui8kit scan` → `ui8kit build` to assemble `packages/registry/r`  
+1. Author/kit digest published as registry JSON on a CDN base (`@ui8kit/registry`)
+2. Apps: `ui8kit init` (with core) + `ui8kit add --runtime …`
+3. Maintainers: pack codegen → `ui8kit build` → publish `r/`
 4. Tailwind `content` / `@source` points at `{dir}/**`
 
 ## Development / publish
@@ -190,7 +275,8 @@ npm run pack:check   # dry-run tarball contents
 
 Maintainer scripts (local fixtures, CDN probe): see [scripts/README.md](scripts/README.md).
 
-User & author guides: see [docs/README.md](docs/README.md).
+User & author guides: see [docs/README.md](docs/README.md).  
+Deferred CLI fixes / known issues: [.project/known-issues.md](./.project/known-issues.md).
 
 ## License
 

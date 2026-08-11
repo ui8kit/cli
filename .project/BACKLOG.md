@@ -1,15 +1,15 @@
-# Backlog — Next Iteration
+# Backlog (pointer)
 
-## Priority Checklist
+> This file previously held mixed test-debt notes. **Authoritative deferred work** for CLI consumer fixes lives in:
 
-## Variants
+- [refactor-backlog.md](./refactor-backlog.md) — next brainstorm agenda (utils/deps, paths, e2e)
+- [known-issues.md](./known-issues.md) — confirmed defects with code pointers
+- [status.md](./status.md) — what is shipped / paused
 
-## Technical debt to close
-- [ ] Restore reliability for the skipped E2E scenario: `tests/commands/cli.test.ts` — `supports init -> add -> reset -> init cycle`.
-- [ ] This test currently times out in some environments during `init`; root cause is still under investigation.
-- [ ] Decision target: move to a dedicated slow/integration profile or stabilize the command path and bring it back into the standard suite.
-- [ ] Add documentation in test notes about required conditions if test is kept out of smoke path (network + timeout guarantees).
-- [ ] `bun run build` can fail in environments where `bun` is available but toolchain dependencies are not installed; keep `npm install` as prerequisite step before local dist build in the runbook.
-- [ ] `registry clean --all --dry-run` reports `No generated registry artifacts found` in app repos where only component/library files were installed; decide whether this should be downgraded from "informational" or clarified in docs.
+## Legacy test debt (still valid, lower priority than P0 consumer bugs)
 
-.workflow\registry\ui8kit.map.json
+- [ ] Stabilize or quarantine skipped e2e: `tests/commands/cli.test.ts` init→add→reset cycle timeout
+- [ ] Document network/timeout assumptions if kept out of default smoke
+- [ ] Clarify `registry clean` messaging when only installed app files exist (no generated author artifacts)
+
+Do **not** treat this file as the refactor plan.
