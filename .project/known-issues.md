@@ -1,5 +1,7 @@
 # Known issues — confirmed on TestApp smoke (2026-08-11)
 
+> **2.0.2 (branch `fix/registry-gaps`)**: P0-1 (utils/lib via `registryDependencies`) and P0-2 (`paths` + `target`) are fixed; runtime filter keeps type files; type-only cycles are quiet. See CHANGELOG. P0-3 (relative imports vs remap) remains by design: remap at the same depth.
+
 Severity: **P0** blocks shadcn-like DX · **P1** layout / stack · **P2** polish.
 
 ---

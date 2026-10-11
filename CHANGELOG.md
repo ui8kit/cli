@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.0.2] - unreleased
+
+Registry gap fixes found while validating per-runtime registries (`r/<runtime>/`) with the real CLI.
+
+### Fixed
+- **Runtime filter dropped type files** (`--runtime` / `config.runtime`): `*.types.ts`, `*.types.tsx` and `*.d.ts` are now always kept, and so is every file of the same item that a kept file imports (relative imports, transitively, extension/`index` resolution). A file imported by a selected file is never dropped. No more `init --framework none` workaround.
+- **`registry:utils` / `registry:lib` not resolved through `registryDependencies`** (`Component utils not found in ui registry, skipping`): `utils`, `utils/<name>`, `lib/<name>` (and bare lib names in `index.json`) resolve against their own endpoints (`utils/utils.json`, `lib/presets.json`) and are installed by `add` when missing. Catalog exclusion (picker, `--all`) is kept; explicit names and dependencies are no longer filtered. Dependency-only utils/lib never overwrite existing files, even with `--force`. `ui8kit add utils` now works.
+- **`paths` ignored when a registry file sets `target`**: precedence is now `--path key=dir` flag > `config.paths` mapped by target prefix > file `target` (documented in `docs/configuration.md`). Behaviour is unchanged when no `paths`/`--path` apply.
+- **Dependency cycles** (type-only imports, e.g. `feature-grid` ↔ `feature-cards`): no more `Circular registry dependency` / `Unresolved dependency cycle` warnings. Each item is installed once and back edges no longer disturb install order. `--verbose` lists type-only edges; a cycle made only of value imports gets one concise warning.
+- Registry item cache is now namespaced per `--registry-url`, so two registries (e.g. per runtime) no longer return each other's cached items.
+
+### Added
+- `add --path <key=dir>` (repeatable) to override install folders for one run.
+- `logger.verbose` (informational lines shown only with `--verbose`).
+- Tests with a generated synthetic fixture registry (`tests/fixtures/build-fixture-registry.mjs`) and an end-to-end script `npm run test:e2e` (`scripts/e2e-fixture-registry.mjs`, init/add for svelte and react).
+
+### Docs
+- README, `docs/commands.md`, `docs/configuration.md`, `docs/registry-format.md`, `docs/troubleshooting.md`: runtime filter, utils/lib resolution, cycles, `paths` precedence.
+
 ## [2.0.1] - 2026-08-11
 
 ### Added

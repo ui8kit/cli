@@ -85,7 +85,7 @@ Example item:
 | `digest` | optional | Digest / release id |
 | `dependencies` | optional | npm deps |
 | `devDependencies` | optional | npm devDeps |
-| `registryDependencies` | optional | Other item names |
+| `registryDependencies` | optional | Other item names. `utils`, `utils/<name>` and `lib/<name>` address `registry:utils` / `registry:lib` items (endpoints `utils/<name>.json`, `lib/<name>.json`); cycles are allowed |
 | `title` / `description` | optional | Docs / list UI |
 | `tailwind` / `cssVars` | optional | Metadata for consumers/tooling |
 | `meta` | optional | Free-form |

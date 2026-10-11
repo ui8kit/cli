@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "CLI to install and maintain UI8Kit component/block registries (multi-runtime, file-based)",
   "type": "module",
   "bin": {
@@ -57,6 +57,7 @@
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
     "get-cdn": "node scripts/get-cdn.js",
+    "test:e2e": "npm run build && node scripts/e2e-fixture-registry.mjs",
     "smoke": "bash scripts/smoke-cli-workflow.sh",
     "smoke:win": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-cli-workflow.ps1",
     "clean:artifacts": "bash scripts/node-artifact-cleaner.sh --yes",

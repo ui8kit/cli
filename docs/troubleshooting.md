@@ -87,3 +87,11 @@ node -v
 ```
 
 Attach these when filing issues.
+
+## "Unresolved import" after `add --runtime …`
+
+Since 2.0.2 the runtime filter keeps `*.types.ts` / `*.d.ts` and every file imported by a kept file. If an import is still unresolved it points at **another registry item** — check that item is listed in `registryDependencies`. On 2.0.0/2.0.1 the workaround was `init --framework none`; it is no longer needed.
+
+## "Circular registry dependency" / "Unresolved dependency cycle"
+
+Removed in 2.0.2: cycles (usually type-only imports) are installed once without a warning; run with `--verbose` to list type-only edges. A single `Runtime import cycle between …` warning means every edge in the cycle is a value import — check those files for circular runtime imports.
