@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
+  extractRelativeImports,
   filterFilesForRuntime,
+  isTypeFile,
+  resolveImportKey,
   isSharedRuntimeFile,
   matchesRuntimeFile,
 } from "../../src/utils/runtime-files.js"
@@ -70,5 +73,103 @@ describe("runtime file filter", () => {
     expect(
       filterFilesForRuntime(utilsFiles, "svelte", { componentType: "registry:utils" }),
     ).toHaveLength(2)
+  })
+})
+
+describe("runtime file filter: type files and imported files (gap 1)", () => {
+  const f = (target: string, content = "") => ({ path: target, target, content })
+
+  it("isTypeFile recognises *.types.ts, *.types.tsx and *.d.ts", () => {
+    expect(isTypeFile("blocks/hero.types.ts")).toBe(true)
+    expect(isTypeFile("blocks/hero.types.tsx")).toBe(true)
+    expect(isTypeFile("global.d.ts")).toBe(true)
+    expect(isTypeFile("blocks/hero.ts")).toBe(false)
+    expect(isTypeFile("blocks/types.svelte")).toBe(false)
+  })
+
+  it("keeps *.types.ts for every runtime", () => {
+    const files = [f("blocks/hero.svelte"), f("blocks/hero.tsx"), f("blocks/hero.types.ts")]
+    for (const rt of ["svelte", "react", "vue", "solid", "templ"]) {
+      expect(filterFilesForRuntime(files, rt).map((x) => x.target)).toContain("blocks/hero.types.ts")
+    }
+  })
+
+  it("keeps a non-runtime file that a kept file imports", () => {
+    const files = [
+      f("ui/icon.svelte", `<script>import { icons } from "./icons"</script>`),
+      f("ui/icons.ts", "export const icons = {}"),
+      f("ui/unrelated.ts", "export {}"),
+    ]
+    const names = filterFilesForRuntime(files, "svelte").map((x) => x.target)
+    expect(names).toEqual(["ui/icon.svelte", "ui/icons.ts"])
+  })
+
+  it("follows imports transitively (kept -> helper -> helper)", () => {
+    const files = [
+      f("a/view.tsx", `import { x } from "./x"`),
+      f("a/x.ts", `export * from "./y"`),
+      f("a/y.ts", "export const y = 1"),
+      f("a/z.ts", "export const z = 1"),
+    ]
+    expect(filterFilesForRuntime(files, "react").map((x) => x.target)).toEqual(["a/view.tsx", "a/x.ts", "a/y.ts"])
+  })
+
+  it("never drops a file another selected file imports (even another runtime's file)", () => {
+    const files = [
+      f("a/view.tsx", `import Shared from "./shared.svelte"`),
+      f("a/shared.svelte", ""),
+    ]
+    expect(filterFilesForRuntime(files, "react")).toHaveLength(2)
+  })
+
+  it("resolves directory index imports and TS-style .js specifiers", () => {
+    const files = [
+      f("a/view.vue", `import "./lib"\nimport { q } from "./q.js"`),
+      f("a/lib/index.ts", ""),
+      f("a/q.ts", ""),
+    ]
+    expect(filterFilesForRuntime(files, "vue")).toHaveLength(3)
+  })
+
+  it("does not follow package or alias imports", () => {
+    const files = [f("a/view.tsx", `import x from "react"\nimport y from "@/utils/cn"`), f("a/react.ts", "")]
+    expect(filterFilesForRuntime(files, "react").map((x) => x.target)).toEqual(["a/view.tsx"])
+  })
+
+  it("works with path-only files (no target)", () => {
+    const files = [
+      { path: "a/view.svelte", content: `import type { T } from "./view.types"` },
+      { path: "a/view.types.ts", content: "" },
+    ]
+    expect(filterFilesForRuntime(files, "svelte")).toHaveLength(2)
+  })
+
+  it("extractRelativeImports tags type-only statements", () => {
+    const refs = extractRelativeImports(`
+      import type { A } from "./a"
+      import { type B, type C } from "./b"
+      import { type D, e } from "./c"
+      import F from "./d"
+      export type { G } from "./g"
+      import "./side"
+      // import H from "./commented"
+      import pkg from "pkg"
+    `)
+    expect(refs).toEqual([
+      { specifier: "./a", typeOnly: true },
+      { specifier: "./b", typeOnly: true },
+      { specifier: "./c", typeOnly: false },
+      { specifier: "./d", typeOnly: false },
+      { specifier: "./g", typeOnly: true },
+      { specifier: "./side", typeOnly: false },
+    ])
+  })
+
+  it("resolveImportKey tries extensions and index files", () => {
+    const known = new Set(["a/b.ts", "a/c/index.ts", "a/d.svelte"])
+    expect(resolveImportKey("a/x.tsx", "./b", known)).toBe("a/b.ts")
+    expect(resolveImportKey("a/x.tsx", "./c", known)).toBe("a/c/index.ts")
+    expect(resolveImportKey("a/sub/x.tsx", "../d.svelte", known)).toBe("a/d.svelte")
+    expect(resolveImportKey("a/x.tsx", "./nope", known)).toBeUndefined()
   })
 })
