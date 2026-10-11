@@ -1,6 +1,7 @@
 import { Component, componentSchema } from "./schema.js"
 import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType, type CdnResolutionOptions } from "../utils/schema-config.js"
 import { logger } from "../utils/logger.js"
+import { createHash } from "crypto"
 import { getCachedJson, setCachedJson } from "../utils/cache.js"
 
 const REGISTRY_INDEX_CACHE_TTL_MS = 3_600_000
@@ -20,6 +21,27 @@ export interface RegistryFetchOptions {
   timeoutMs?: number
   noCache?: boolean
   cdn?: CdnResolutionOptions
+}
+
+/**
+ * Cache key namespace. An explicit registry URL gets its own namespace so that
+ * two registries (e.g. one per runtime) never share cached items by name.
+ */
+function cacheScope(registryType: RegistryType, options: RegistryFetchOptions = {}): string {
+  const url = options.cdn?.registryUrl?.trim()
+  if (!url) return registryType
+  const hash = createHash("sha1").update(url.replace(/\/+$/, "")).digest("hex").slice(0, 10)
+  return `${registryType}/@${hash}`
+}
+
+/**
+ * `lib/<name>` and `utils/<name>` registry dependencies address the lib and
+ * utils endpoints directly (`lib/<name>.json`, `utils/<name>.json`).
+ */
+export function parseTypedDependency(name: string): { name: string; type?: "registry:lib" | "registry:utils" } {
+  const m = name.trim().match(/^(lib|utils)\/(.+)$/i)
+  if (!m) return { name: name.trim() }
+  return { name: m[2]!, type: m[1]!.toLowerCase() === "lib" ? "registry:lib" : "registry:utils" }
 }
 
 export function getRegistryCdnState(
@@ -127,7 +149,7 @@ async function getRegistryIndex(registryType: RegistryType, options: RegistryFet
   }
 
   const cached = await getCachedJson(
-    `${registryType}/index.json`,
+    `${cacheScope(registryType, options)}/index.json`,
     { noCache: options.noCache, ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
   )
   if (cached) {
@@ -139,7 +161,7 @@ async function getRegistryIndex(registryType: RegistryType, options: RegistryFet
 
   cache.registryIndex = await fetchFromRegistryPath("index.json", registryType, options)
   await setCachedJson(
-    `${registryType}/index.json`,
+    `${cacheScope(registryType, options)}/index.json`,
     cache.registryIndex,
     { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
   )
@@ -147,13 +169,17 @@ async function getRegistryIndex(registryType: RegistryType, options: RegistryFet
 }
 
 async function getComponentByType(
-  name: string,
+  rawName: string,
   registryType: RegistryType,
   options: RegistryFetchOptions = {}
 ): Promise<Component | null> {
+  const typed = parseTypedDependency(rawName)
+  const name = typed.name
   const normalizedName = name.toLowerCase()
+  const scope = cacheScope(registryType, options)
+  const cacheKey = `${scope}/components/${typed.type ? typed.type.replace("registry:", "") + "-" : ""}${normalizedName}.json`
   const cachedComponent = await getCachedJson(
-    `${registryType}/components/${normalizedName}.json`,
+    cacheKey,
     { noCache: options.noCache, ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
   )
   if (cachedComponent) {
@@ -165,31 +191,49 @@ async function getComponentByType(
   }
 
   try {
-    const index = await getRegistryIndex(registryType, options)
+    let index: any = null
+    try {
+      index = await getRegistryIndex(registryType, options)
+    } catch (error) {
+      // Typed dependencies (utils, lib/*) can still be fetched without an index.
+      if (!typed.type && normalizedName !== "utils") throw error
+      logger.debug(`Index unavailable, trying direct endpoint for ${rawName}`)
+    }
     const excludeTypes = options.excludeTypes ?? []
-    const componentInfo = index.components?.find(
+    const componentInfo = index?.components?.find(
       (c: any) =>
         typeof c?.name === "string" &&
         c.name.toLowerCase() === normalizedName &&
+        (!typed.type || c.type === typed.type) &&
         !excludeTypes.includes(c.type)
     )
-    if (!componentInfo) {
+
+    // Resolve the endpoint type: index entry first; otherwise `lib/x`, `utils/x`
+    // and bare `utils` fall back to their own registry type endpoints.
+    let itemType: string | undefined = componentInfo?.type
+    if (!itemType && !excludeTypes.includes("registry:utils") && (typed.type === "registry:utils" || (!typed.type && normalizedName === "utils"))) {
+      itemType = "registry:utils"
+    }
+    if (!itemType && typed.type === "registry:lib" && !excludeTypes.includes("registry:lib")) {
+      itemType = "registry:lib"
+    }
+    if (!itemType) {
       logger.debug(`Component ${name} not found in ${registryType} registry`)
       return null
     }
 
     const folder =
-      componentInfo.type === "registry:variants"
+      itemType === "registry:variants"
         ? "components/variants"
-        : TYPE_TO_FOLDER[componentInfo.type as keyof typeof TYPE_TO_FOLDER]
+        : TYPE_TO_FOLDER[itemType as keyof typeof TYPE_TO_FOLDER]
     if (!folder) {
-      logger.debug(`Unknown component type: ${componentInfo.type}`)
+      logger.debug(`Unknown component type: ${itemType}`)
       return null
     }
 
-    logger.debug(`Loading ${name} from /${folder}/ (type: ${componentInfo.type})`)
+    logger.debug(`Loading ${name} from /${folder}/ (type: ${itemType})`)
     const data = await fetchFromRegistryPath(`${folder}/${name}.json`, registryType, options)
-    await setCachedJson(`${registryType}/components/${normalizedName}.json`, data, { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS })
+    await setCachedJson(cacheKey, data, { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS })
     return componentSchema.parse(data)
   } catch (error) {
     logger.debug(`Failed to get component by type: ${(error as Error).message}`)

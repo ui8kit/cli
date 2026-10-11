@@ -60,6 +60,7 @@ ui8kit add [components...] [options]
 | `-f, --force` | Overwrite existing files |
 | `-r, --registry <type>` | Registry type (default `ui`) |
 | `--runtime <name>` | Install only this runtime’s files (+ shared); skip items with a mismatched `runtime` field |
+| `--path <key=dir>` | Override an install folder for this run (repeatable), e.g. `--path ui=kit`. Beats `config.paths` and registry `target`s. Keys: `lib`, `utils`, `components`, `ui`, `blocks`, `layouts`, `variants`, `widgets` |
 | `--dry-run` | Plan only; no writes |
 | `--retry` | Retry failed CDN requests |
 | `--registry-url <url>` | Registry base override |
@@ -92,7 +93,20 @@ Registry bricks often ship **all** stacks in one item (no per-item `runtime`). W
 | `latte` | `*.latte` |
 | `twig` | `*.twig` / `*.html.twig` |
 
+Also always kept:
+
+- **Type files**: `*.types.ts`, `*.types.tsx`, `*.d.ts` (they are not tied to a runtime and blocks import them).
+- **Imported files**: every file of the same item that a kept file imports with a relative specifier (`./x`, `../x`; extensions and `index` files are resolved; followed transitively). A file that another selected file imports is never dropped, even if it belongs to another runtime.
+
 Shared always: `*.shared.ts`, `*.variants.json`. Types `registry:utils`, `registry:lib`, `registry:variants` are never sliced. If an item sets `runtime: "svelte"` and you pass `--runtime react`, the whole item is skipped.
+
+### Dependency resolution
+
+`add` resolves `registryDependencies` recursively and installs every item once (dependencies first).
+
+- **`utils` and `lib/*`**: `utils`, `utils/<name>`, `lib/<name>` (and bare lib names present in `index.json`) are fetched from their own type endpoints (`utils/<name>.json`, `lib/<name>.json`). They are hidden from the interactive picker and from `--all` listings, but are installed whenever an item depends on them. When they are only pulled in as dependencies, existing files are **never overwritten** (not even with `--force`); `ui8kit add utils --force` overwrites explicitly. `init` still installs core `utils`/`lib`/`variants` unless `--skip-core`.
+- **Cycles**: items may depend on each other (typically type-only imports such as `feature-grid` ↔ `feature-cards`). Cycles are not an error: no default warning, each item is installed once. With `--verbose` the type-only edges of a cycle are listed. A cycle where every edge is a value import gets a single one-line warning.
+- **Missing items** still warn `Component <name> not found in <registry> registry, skipping`.
 
 ---
 

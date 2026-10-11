@@ -74,7 +74,7 @@ After init, edit to pin CDN + runtime (example for Vite/Svelte under `src/`):
 }
 ```
 
-**Path remap note:** bricks import `../../utils`. Keep utils at `{dir}/utils`. If you want MentorYChat-style `src/kit`, set `"paths": { "ui": "kit" }` in config for documentation — **in 2.0.1 `paths` is ignored when registry files set `target`** (they still install under `components/ui`). Workaround: after `add`, move `src/components/ui/*` → `src/kit/` and leave `src/utils` in place. Do **not** set `"utils": "kit/utils"` without rewriting imports.
+**Path remap note:** bricks import `../../utils` (relative). Keep utils at `{dir}/utils`, and remap folders at the same depth (e.g. `"paths": { "ui": "kit" }`). Since 2.0.2 `paths` **is honoured when a registry file sets `target`**: `--path key=dir` flag > `config.paths` (mapped by target prefix) > the file's `target` — see [Configuration → paths precedence](./docs/configuration.md#paths-precedence-with-registry-target). Do **not** set `"utils": "kit/utils"` without rewriting imports.
 
 ### 3. Add UI (runtime file filter)
 
@@ -84,7 +84,7 @@ bunx ui8kit@2.0.1 add button stack title text --runtime svelte --force
 bunx ui8kit@2.0.1 add --all --runtime svelte --force
 ```
 
-`--runtime svelte` keeps `.svelte` + `*.shared.ts` + `*.variants.json` only.
+`--runtime svelte` keeps `.svelte`, `*.shared.ts`, `*.variants.json`, **type files** (`*.types.ts`, `*.d.ts`) and **any file a kept file imports** (relative imports, followed transitively), so installs never end up with unresolved imports.
 
 Also install npm peers used by utils if missing:
 
@@ -209,14 +209,18 @@ bunx ui8kit add button --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r
 
 Install **preserves nested paths** (e.g. `components/ui/button/Button.svelte`), no basename flatten.
 
-**Runtime filter:** when `--runtime` or `config.runtime` is set, only that stack’s files are written, plus shared brick assets (`*.shared.ts`, `*.variants.json`). Utils/lib items are installed in full when reachable. Items that declare a different item-level `runtime` field are skipped entirely.
+**Runtime filter:** when `--runtime` or `config.runtime` is set, only that stack’s files are written, plus shared brick assets (`*.shared.ts`, `*.variants.json`), type files (`*.types.ts`, `*.d.ts`) and every file of the same item that a kept file imports (transitively). A file imported by a selected file is never dropped. Utils/lib items are installed in full. Items that declare a different item-level `runtime` field are skipped entirely.
+
+**`utils` and `lib/*` dependencies:** `registryDependencies` entries `utils`, `lib/<name>` (or a bare lib item name listed in `index.json`) are resolved against their own endpoints (`utils/utils.json`, `lib/<name>.json`) and installed by `add` if missing — no more "not found in ui registry, skipping". Files that already exist are left untouched, even with `--force`, when the item was only pulled in as a dependency.
+
+**Dependency cycles** (e.g. `feature-grid` ↔ `feature-cards` through type-only imports) are resolved quietly: each item is installed once. `--verbose` lists type-only edges.
 
 ```bash
 # Multi-file brick on CDN → only Svelte + shared land on disk
 bunx ui8kit add button --runtime svelte
 ```
 
-Known gap: `ui8kit add utils` fails in 2.0.1 — use init core install or the [manual fallback](#manual-utils-fallback-if-init-skipped-core).
+Since 2.0.2 `ui8kit add utils` works (explicit item; `--force` overwrites). The [manual fallback](#manual-utils-fallback-if-init-skipped-core) is only needed for older CLIs.
 
 ### `list` / `diff` / `info` / `cache` / `reset` / `scan` / `build`
 

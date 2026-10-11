@@ -159,3 +159,14 @@ Validates real CLI entry points as a user would call them from the shell.
 - If you add new CLI commands, add both:
   - A quick unit test for pure logic/handlers.
   - A small integration test in `tests/commands/cli.test.ts` for argument parsing/help path.
+
+## Registry gap tests (2.0.2)
+
+Fixture: `tests/fixtures/build-fixture-registry.mjs` generates a synthetic static registry (svelte + react) in a temp dir; `tests/helpers/static-server.mjs` serves it on 127.0.0.1. No private/real registry content.
+
+- `tests/utils/runtime-files.test.ts` — gap 1 (type files + imported files survive `--runtime`).
+- `tests/registry/typed-dependencies.test.ts` — gap 2 endpoints (`utils`, `lib/presets`), catalog exclusion, `registryUrl`/`strictCdn`, per-URL cache.
+- `tests/utils/paths.test.ts` — gap 3 precedence (`--path` > `config.paths` by target prefix > `target`).
+- `tests/utils/dependency-resolver.test.ts` — gap 2 normalisation and gap 4 cycles (quiet, once, verbose edges).
+- `tests/commands/add-fixture-registry.test.ts` — all four gaps through `addCommand` for svelte and react.
+- `scripts/e2e-fixture-registry.mjs` (`npm run test:e2e`) — built CLI, temp projects, init/add for two runtimes. `UI8KIT_CLI=<path>` runs it against another build.

@@ -65,7 +65,8 @@ describe("add command CDN option wiring", () => {
     })
 
     expect(registryApi.getComponent).toHaveBeenCalledWith("button", "ui", {
-      excludeTypes: ["registry:variants", "registry:lib", "registry:utils"],
+      // name fetches are never catalog-filtered (utils and lib/* resolve via registryDependencies)
+      excludeTypes: [],
       maxRetries: 1,
       noCache: false,
       cdn: {

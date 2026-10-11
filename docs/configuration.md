@@ -73,6 +73,22 @@ All optional; values are relative to `dir` (no leading `./` required):
 
 `lib` · `utils` · `components` · `ui` · `blocks` · `layouts` · `variants` · `widgets`
 
+### `paths` precedence with registry `target`
+
+Registry files usually carry a `target` (e.g. `components/ui/button/Button.svelte`, or registry-specific such as `primitives/button/button.svelte`). Where a file lands is decided in this order:
+
+1. **Explicit CLI flag**: `add --path ui=kit` (repeatable; keys as above).
+2. **`config.paths`, mapped by target prefix**:
+   - if the target starts with a canonical folder — `components/ui` → `ui`, `components` → `components`, `blocks`, `layouts`, `variants`, `widgets`, `utils`, `lib` (longest match first) — that prefix is replaced by the configured folder;
+   - otherwise the target's first folder (e.g. `primitives/`, `presets/`) is treated as the item type's own folder and replaced by `paths[<key of the item type>]` (`registry:ui` → `ui`, `registry:lib` → `lib`, …).
+3. **The file's `target`** (unchanged), when no `paths` entry applies.
+
+Everything is relative to `dir`; keys you did not configure are not remapped. Without `paths` and without `--path` behaviour is exactly as in 2.0.0/2.0.1. Files without `target` keep using `paths` as before.
+
+Example — `{ "paths": { "ui": "kit" } }`: `components/ui/button/Button.svelte` → `src/kit/button/Button.svelte`; `primitives/button/button.svelte` → `src/kit/button/button.svelte`; `blocks/hero.svelte` stays in `src/blocks/`.
+
+Caveat: the CLI does not rewrite relative imports. Remap to folders at the same depth, and keep `utils` next to the remapped folders (bricks import `../../utils`, `../presets/defaults`, `../primitives/…`).
+
 ## Default aliases (when `dir` is `src`)
 
 ```json
@@ -101,6 +117,7 @@ Flags on `init` / `add` / `list` / `diff` override config for that invocation:
 | `--registry-version` | `registryVersion` |
 | `--strict-cdn` | `strictCdn` |
 | `--runtime` | Prefer that runtime: file-level filter (+ skip mismatched item `runtime`) |
+| `--path key=dir` | (`add`) Override one `paths` key for this run; repeatable |
 | `--import-style` | `importStyle` (init) |
 
 Use flags for one-off CI pins; put stable values in config for daily work.
