@@ -9,7 +9,7 @@ import { checkProjectDependencies, showDependencyStatus } from "../utils/depende
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { installDependencies } from "../utils/package-manager.js"
 import { logger, Spinner } from "../utils/logger.js"
-import { resolveRegistryTree } from "../utils/dependency-resolver.js"
+import { normalizeDependencyName, resolveRegistryTree } from "../utils/dependency-resolver.js"
 import { handleError, ConfigNotFoundError } from "../utils/errors.js"
 import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
 import { applyTransforms, shouldTransformFile } from "../utils/transform.js"
@@ -20,6 +20,7 @@ import {
   resolveInstallDir,
 } from "../utils/paths.js"
 import { ensureDir } from "../utils/project.js"
+import { applyPathOverrides } from "../utils/paths.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
 import { filterFilesForRuntime } from "../utils/runtime-files.js"
 
@@ -34,9 +35,23 @@ interface AddOptions {
   registryVersion?: string
   strictCdn?: boolean
   runtime?: string
+  /** Repeatable `--path key=dir` overrides (highest precedence, see docs/configuration.md). */
+  path?: string[]
 }
 
+/**
+ * Hidden from catalogs only (interactive picker, `--all`). Never applied to
+ * explicit names or `registryDependencies`, so `utils` and `lib/*` resolve.
+ */
 const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils"]
+
+/** Options for fetching a single item by name: no catalog exclusions. */
+function fetchOptions<T extends { excludeTypes: string[] }>(requestOptions: T): T {
+  return { ...requestOptions, excludeTypes: [] }
+}
+
+/** Types installed as shared foundations: never overwritten when pulled in as a dependency. */
+const SHARED_FOUNDATION_TYPES = new Set(["registry:utils", "registry:lib"])
 
 export { inferTargetFromType, resolveInstallDir }
 
@@ -44,10 +59,11 @@ export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
 
   try {
-    const config = await findConfig(registryType)
-    if (!config) {
+    const loadedConfig = await findConfig(registryType)
+    if (!loadedConfig) {
       throw new ConfigNotFoundError(registryType)
     }
+    const config = applyPathOverrides(loadedConfig, options.path)
 
     const cdnResolution: CdnResolutionOptions = {
       registryUrl: options.registryUrl || config.registryUrl,
@@ -90,7 +106,7 @@ export async function addCommand(components: string[], options: AddOptions) {
       await ensureDir(root)
     }
 
-    const getComponentFn = (name: string, type: RegistryType) => getComponent(name, type, requestOptions)
+    const getComponentFn = (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions))
 
     const results = await installRequestedComponents(
       selectedComponents,
@@ -118,10 +134,11 @@ async function addAllComponents(
     handleValidationError(validation)
   }
 
-  const config = await findConfig(registryType)
-  if (!config) {
+  const loadedConfig = await findConfig(registryType)
+  if (!loadedConfig) {
     throw new ConfigNotFoundError(registryType)
   }
+  const config = applyPathOverrides(loadedConfig, options.path)
 
   const getAllComponentsFn = (type: RegistryType) => getAllComponents(type, requestOptions)
 
@@ -153,7 +170,7 @@ async function addAllComponents(
         allComponents.map(c => c.name),
         registryType,
         config,
-        (name: string, type: RegistryType) => getComponent(name, type, requestOptions),
+        (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions)),
         options,
         allComponents
       )
@@ -164,7 +181,7 @@ async function addAllComponents(
       allComponents.map(c => c.name),
       registryType,
       config,
-      (name: string, type: RegistryType) => getComponent(name, type, requestOptions),
+      (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions)),
       options,
       allComponents
     )
@@ -197,7 +214,8 @@ async function processComponents(
   getComponentFn: (name: string, type: RegistryType) => Promise<Component | null>,
   options: AddOptions,
   preloadedComponents?: Component[],
-  totalCount?: number
+  totalCount?: number,
+  explicitNames?: ReadonlySet<string>,
 ): Promise<Array<{ name: string; status: "success" | "error"; error?: string }>> {
   const results: Array<{ name: string; status: "success" | "error"; error?: string }> = []
   const componentMap = new Map(preloadedComponents?.map(c => [c.name.toLowerCase(), c]))
@@ -296,7 +314,12 @@ async function processComponents(
         continue
       }
 
-      await installComponentFiles(componentForInstall, config, options.force)
+      // utils/lib pulled in as a dependency are installed only if missing (user edits are kept, even with --force).
+      const pulledIn =
+        SHARED_FOUNDATION_TYPES.has(component.type) &&
+        explicitNames !== undefined &&
+        !explicitNames.has(component.name.toLowerCase())
+      await installComponentFiles(componentForInstall, config, options.force && !pulledIn, { quiet: pulledIn })
 
       if (component.dependencies.length > 0) {
         try {
@@ -429,7 +452,9 @@ async function installRequestedComponents(
 
   const orderedNames = new Set(orderedComponents.map(component => component.name.toLowerCase()))
   const normalizedRequested = Array.from(new Set(componentNames.map(name => name.toLowerCase())))
-  const missingRequested = normalizedRequested.filter(name => !orderedNames.has(name))
+  const missingRequested = normalizedRequested.filter(
+    name => !orderedNames.has(normalizeDependencyName(name)),
+  )
 
   const missingResults = missingRequested.map(name => ({
     name,
@@ -437,6 +462,7 @@ async function installRequestedComponents(
     error: `Component "${name}" was not found in ${registryType} registry`
   }))
 
+  const explicitNames = new Set(normalizedRequested.map(normalizeDependencyName))
   const processingResults = await processComponents(
     orderedComponents.map(component => component.name),
     registryType,
@@ -444,7 +470,8 @@ async function installRequestedComponents(
     resolverGetComponent,
     options,
     orderedComponents,
-    orderedComponents.length
+    orderedComponents.length,
+    explicitNames,
   )
   return [...missingResults, ...processingResults]
 }
@@ -475,6 +502,7 @@ async function installComponentFiles(
   component: Component,
   config: Config,
   force = false,
+  opts: { quiet?: boolean } = {},
 ): Promise<void> {
   for (const file of component.files) {
     const relative = resolveFileInstallPath(file, component.type, config)
@@ -482,7 +510,7 @@ async function installComponentFiles(
     const fileName = path.basename(targetPath)
 
     if (!force && (await pathExists(targetPath))) {
-      console.log(`   ⚠️  ${CLI_MESSAGES.status.skipped(fileName)}`)
+      if (!opts.quiet) console.log(`   ⚠️  ${CLI_MESSAGES.status.skipped(fileName)}`)
       continue
     }
 

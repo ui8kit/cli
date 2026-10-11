@@ -32,6 +32,79 @@ export function resolveTypeFolder(componentType: string, config: Config): string
   return TYPE_TO_FOLDER[typed] || CANONICAL_PATHS.components
 }
 
+/** Known target prefixes → path key, longest first. */
+const TARGET_PREFIX_KEYS: ReadonlyArray<readonly [string, PathKey]> = [
+  ["components/ui", "ui"],
+  ["components", "components"],
+  ["blocks", "blocks"],
+  ["layouts", "layouts"],
+  ["variants", "variants"],
+  ["widgets", "widgets"],
+  ["utils", "utils"],
+  ["lib", "lib"],
+]
+
+function configuredPath(key: PathKey, config: Config): string | undefined {
+  const value = config.paths?.[key]
+  return value && value.trim() ? normalizeDir(value) : undefined
+}
+
+/**
+ * Remap a registry `target` (relative to `dir`) through `config.paths`.
+ *
+ *  1. If the target starts with a canonical folder (`components/ui`, `components`,
+ *     `blocks`, `layouts`, `variants`, `widgets`, `utils`, `lib`) and `paths` remaps
+ *     that key, the prefix is replaced by the configured folder.
+ *  2. Otherwise (registry-specific first folder such as `primitives/` or `presets/`)
+ *     the first folder is treated as the item type's own folder and replaced by
+ *     `paths[<key of the item type>]`, when configured.
+ *  3. With no matching `paths` entry the target is returned unchanged.
+ */
+export function mapTargetByPaths(target: string, componentType: string, config: Config): string {
+  if (!config.paths) return target
+
+  for (const [prefix, key] of TARGET_PREFIX_KEYS) {
+    if (target === prefix || target.startsWith(prefix + "/")) {
+      const mapped = configuredPath(key, config)
+      return mapped ? joinTarget(mapped, target.slice(prefix.length)) : target
+    }
+  }
+
+  const typeKey = TYPE_TO_PATH_KEY[componentType as ComponentType]
+  const mapped = typeKey ? configuredPath(typeKey, config) : undefined
+  if (!mapped) return target
+  const slash = target.indexOf("/")
+  return slash === -1 ? joinTarget(mapped, "/" + target) : joinTarget(mapped, target.slice(slash))
+}
+
+function joinTarget(folder: string, rest: string): string {
+  const tail = rest.replace(/^\/+/, "")
+  return tail ? toPosix(path.posix.join(folder, tail)) : folder
+}
+
+/**
+ * Merge `--path key=dir` CLI flags over `config.paths` (flags win).
+ * Throws on a malformed pair or unknown key.
+ */
+export function applyPathOverrides(config: Config, flags?: readonly string[]): Config {
+  if (!flags || flags.length === 0) return config
+  const validKeys = Object.keys(CANONICAL_PATHS)
+  const overrides: Record<string, string> = {}
+  for (const flag of flags) {
+    const eq = flag.indexOf("=")
+    const key = eq === -1 ? "" : flag.slice(0, eq).trim()
+    const dir = eq === -1 ? "" : flag.slice(eq + 1).trim()
+    if (!key || !dir) {
+      throw new Error(`Invalid --path "${flag}". Expected key=dir, e.g. --path ui=kit`)
+    }
+    if (!validKeys.includes(key)) {
+      throw new Error(`Unknown --path key "${key}". Valid keys: ${validKeys.join(", ")}`)
+    }
+    overrides[key] = dir
+  }
+  return { ...config, paths: { ...config.paths, ...overrides } }
+}
+
 /**
  * All install roots that `init` should ensure exist.
  */
@@ -85,18 +158,22 @@ export function resolveFileInstallPath(
   const typeFolder = resolveTypeFolder(componentType, config)
 
   if (file.target && file.target.trim()) {
-    let target = toPosix(file.target).replace(/^\.\//, "").replace(/^\/+/, "")
-    // Absolute-from-cwd style targets that already include dir
-    if (target === dir || target.startsWith(dir + "/")) {
-      return target
+    const original = toPosix(file.target).replace(/^\.\//, "").replace(/^\/+/, "")
+    // Target relative to `dir` (strip a leading `dir/`, or legacy `src/`)
+    let rel = original
+    let legacy: string
+    if (original === dir || original.startsWith(dir + "/")) {
+      rel = original === dir ? "" : original.slice(dir.length + 1)
+      legacy = original
+    } else if (original.startsWith("src/")) {
+      rel = original.slice(4)
+      legacy = dir === "src" ? toPosix(path.posix.join("src", rel)) : toPosix(path.posix.join(dir, rel))
+    } else {
+      legacy = toPosix(path.posix.join(dir, original))
     }
-    // Legacy: target starts with src/
-    if (target.startsWith("src/")) {
-      target = target.slice(4)
-      if (dir === "src") return toPosix(path.posix.join("src", target))
-      return toPosix(path.posix.join(dir, target))
-    }
-    return toPosix(path.posix.join(dir, target))
+    // Precedence: CLI --path (merged into config.paths) > config.paths by target prefix > file target
+    const mapped = rel ? mapTargetByPaths(rel, componentType, config) : rel
+    return mapped === rel ? legacy : toPosix(path.posix.join(dir, mapped))
   }
 
   const raw = toPosix(file.path).replace(/^\.\//, "").replace(/^\/+/, "")

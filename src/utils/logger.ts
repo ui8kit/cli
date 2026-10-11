@@ -72,6 +72,11 @@ export const logger = {
   debug(message: string, ...args: unknown[]) {
     output("debug", message, ...args)
   },
+  /** Informational line shown only with --verbose. */
+  verbose(message: string, ...args: unknown[]) {
+    if (!verboseEnabled) return
+    console.log(`i ${message}`, ...args)
+  },
   spinner(text: string) {
     return new Spinner(text).start()
   },

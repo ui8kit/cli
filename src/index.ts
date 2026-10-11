@@ -105,6 +105,11 @@ program
     "--runtime <name>",
     "Install only this runtime's files (+ shared); skip items with a different runtime field",
   )
+  .option(
+    "--path <key=dir>",
+    "Override an install folder for this run (e.g. ui=kit); beats config.paths and registry targets. Repeatable",
+    (value: string, previous: string[] = []) => [...previous, value],
+  )
   .option("--dry-run", "Plan without writing")
   .option("--retry", "Retry CDN requests")
   .option("--registry-url <url>", "Override registry base URL")
