@@ -11,5 +11,6 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     globals: false,
     clearMocks: true,
+    setupFiles: ["tests/helpers/isolate-home.ts"],
   },
 })
