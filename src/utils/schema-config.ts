@@ -8,6 +8,7 @@ export const FRAMEWORKS = [
   "templ",
   "latte",
   "twig",
+  "jinja2",
   "none",
 ] as const
 
@@ -22,6 +23,7 @@ export const RUNTIMES = [
   "templ",
   "latte",
   "twig",
+  "jinja2",
 ] as const
 
 export type Runtime = (typeof RUNTIMES)[number]

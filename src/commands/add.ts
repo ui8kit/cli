@@ -256,6 +256,7 @@ async function processComponents(
 
       const filesForRuntime = filterFilesForRuntime(component.files, preferredRuntime, {
         componentType: component.type,
+        itemRuntime: component.runtime,
       })
 
       if (preferredRuntime && filesForRuntime.length === 0) {

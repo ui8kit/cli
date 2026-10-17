@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   extractRelativeImports,
+  isKnownRuntime,
   filterFilesForRuntime,
   isTypeFile,
   resolveImportKey,
@@ -171,5 +172,63 @@ describe("runtime file filter: type files and imported files (gap 1)", () => {
     expect(resolveImportKey("a/x.tsx", "./c", known)).toBe("a/c/index.ts")
     expect(resolveImportKey("a/sub/x.tsx", "../d.svelte", known)).toBe("a/d.svelte")
     expect(resolveImportKey("a/x.tsx", "./nope", known)).toBeUndefined()
+  })
+})
+
+describe("jinja2 runtime", () => {
+  it("is a known runtime", () => {
+    expect(isKnownRuntime("jinja2")).toBe(true)
+    expect(isKnownRuntime("templ")).toBe(true)
+    expect(isKnownRuntime("html")).toBe(false)
+  })
+
+  it("matches .html.j2 / .j2 / .jinja / .jinja2 templates only", () => {
+    expect(matchesRuntimeFile("ui/button/button.html.j2", "jinja2")).toBe(true)
+    expect(matchesRuntimeFile("blocks/hero.j2", "jinja2")).toBe(true)
+    expect(matchesRuntimeFile("x.jinja", "jinja2")).toBe(true)
+    expect(matchesRuntimeFile("x.jinja2", "jinja2")).toBe(true)
+    expect(matchesRuntimeFile("ui/button/button.html.twig", "jinja2")).toBe(false)
+    expect(matchesRuntimeFile("py/ui8kit_jinja/runtime.py", "jinja2")).toBe(false)
+  })
+
+  it("keeps jinja2 templates and shared variants of a multi-stack item", () => {
+    const files = [
+      { path: "ui/button/button.html.j2", target: "ui/button/button.html.j2" },
+      { path: "ui/button/button.html.twig", target: "ui/button/button.html.twig" },
+      { path: "ui/button/button.variants.json", target: "ui/button/button.variants.json" },
+    ]
+    expect(filterFilesForRuntime(files, "jinja2").map((f) => f.target)).toEqual([
+      "ui/button/button.html.j2",
+      "ui/button/button.variants.json",
+    ])
+  })
+})
+
+describe("single-runtime items (item-level runtime equals the requested runtime)", () => {
+  it("solid: keeps plain *.tsx files of an item published for solid", () => {
+    const files = [
+      { path: "blocks/hero.tsx", target: "blocks/hero.tsx" },
+      { path: "blocks/hero.types.ts", target: "blocks/hero.types.ts" },
+    ]
+    expect(filterFilesForRuntime(files, "solid")).toHaveLength(1) // multi-stack rule: only *.solid.tsx (+ types)
+    expect(filterFilesForRuntime(files, "solid", { itemRuntime: "solid" })).toHaveLength(2)
+  })
+
+  it("templ: keeps Go companions that are not *_gen.go (embed.go, go.mod)", () => {
+    const files = [
+      { path: "blocks/embed.go", target: "blocks/embed.go" },
+      { path: "blocks/recipes/avatar.variants.json", target: "blocks/recipes/avatar.variants.json" },
+    ]
+    expect(filterFilesForRuntime(files, "templ", { itemRuntime: "templ" })).toHaveLength(2)
+  })
+
+  it("a different item runtime still uses the file rules", () => {
+    const files = [
+      { path: "blocks/hero.tsx", target: "blocks/hero.tsx" },
+      { path: "blocks/Hero.svelte", target: "blocks/Hero.svelte" },
+    ]
+    expect(filterFilesForRuntime(files, "svelte", { itemRuntime: "react" }).map((f) => f.target)).toEqual([
+      "blocks/Hero.svelte",
+    ])
   })
 })

@@ -1,5 +1,5 @@
 import path from "path"
-import type { Runtime } from "./schema-config.js"
+import { RUNTIMES, type Runtime } from "./schema-config.js"
 
 /** Component types that always install every file (no runtime slice). */
 const ALWAYS_FULL_TYPES = new Set([
@@ -53,6 +53,8 @@ export function matchesRuntimeFile(filePath: string, runtime: string): boolean {
       return /\.latte$/i.test(base)
     case "twig":
       return /\.html\.twig$/i.test(base) || /\.twig$/i.test(base)
+    case "jinja2":
+      return /\.(j2|jinja|jinja2)$/i.test(base)
     default:
       return true
   }
@@ -151,14 +153,21 @@ export function resolveImportKey(
  * `*.variants.json`), type files (`*.types.ts`, `*.d.ts`), and — transitively —
  * every file of the same item that a kept file imports with a relative
  * specifier. A file imported by a selected file is never dropped.
- * Utils/lib/variants items are never sliced.
+ * Utils/lib/variants items are never sliced, and neither is a single-runtime
+ * item whose item-level `runtime` equals the requested runtime (a per-runtime
+ * registry such as `r/solid/`: every file of the item belongs to that runtime,
+ * whatever its extension, e.g. `*.tsx` for Solid or `embed.go` for templ).
  */
 export function filterFilesForRuntime<T extends FileLike & { content?: string }>(
   files: readonly T[],
   runtime: string | undefined,
-  options?: { componentType?: string },
+  options?: { componentType?: string; itemRuntime?: string },
 ): T[] {
   if (!runtime) {
+    return [...files]
+  }
+
+  if (options?.itemRuntime && options.itemRuntime === runtime) {
     return [...files]
   }
 
@@ -199,13 +208,5 @@ export function filterFilesForRuntime<T extends FileLike & { content?: string }>
 }
 
 export function isKnownRuntime(value: string): value is Runtime {
-  return (
-    value === "react" ||
-    value === "svelte" ||
-    value === "vue" ||
-    value === "solid" ||
-    value === "templ" ||
-    value === "latte" ||
-    value === "twig"
-  )
+  return (RUNTIMES as readonly string[]).includes(value)
 }
