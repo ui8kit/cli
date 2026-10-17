@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.4] - unreleased
+## [2.0.4] - 2026-10-17
 
 ### Fixed
 - **`ui8kit --version` (and `info`) printed the wrong version**: `0.0.0` under `npx` (the npx cache manifest has no version) and the consumer project's own version when run through `node_modules/.bin/ui8kit`. The version is now read from the CLI's own module directory first, then from the symlink-resolved entry script, and only a `package.json` named `ui8kit` is accepted. Tests cover the npx cache layout, a bin symlink inside a project with its own `package.json`, and a direct run.
