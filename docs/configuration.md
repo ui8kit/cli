@@ -46,7 +46,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `contractVersion` | string | `"2.0.0"` | Config/registry contract major |
-| `framework` | enum | `"none"` | `react` \| `svelte` \| `vue` \| `solid` \| `templ` \| `latte` \| `twig` \| `none` |
+| `framework` | enum | `"none"` | `react` \| `svelte` \| `vue` \| `solid` \| `templ` \| `latte` \| `twig` \| `jinja2` \| `none` |
 | `runtime` | enum | — | Default digest slice for installs |
 | `typescript` | boolean | `true` | Project uses TypeScript (metadata) |
 | `globalCss` | string | `"src/index.css"` | Global / Tailwind entry path |

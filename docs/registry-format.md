@@ -131,7 +131,9 @@ https://cdn.example.com/ui8kit@0.1.0-svelte/r/...
 https://cdn.example.com/ui8kit@0.1.0-react/r/...
 ```
 
-Consumers select with `--runtime` and/or `--registry-version`. Item-level `runtime` skips the whole package; file-level filter applies when the field is omitted and multiple stacks share one JSON.
+Consumers select with `--runtime` and/or `--registry-version`. Item-level `runtime` skips the whole package when it differs from the requested runtime; when it is equal, every file of the item is installed (no file-level slicing, since 2.0.3). The file-level filter applies only when the field is omitted and multiple stacks share one JSON.
+
+Runtimes (`runtime` field and `--runtime`): `react`, `svelte`, `vue`, `solid`, `templ`, `latte`, `twig`, `jinja2` (since 2.0.3). For the server-template runtimes (`templ`, `latte`, `twig`, `jinja2`) file `target`s are relative to the template root (Go module root, Twig/Latte/Jinja2 loader root), e.g. `ui/button/button.html.twig`, `blocks/hero-split.latte`; npm `dependencies` stay empty (toolchain requirements are not npm packages).
 
 ## Validation
 

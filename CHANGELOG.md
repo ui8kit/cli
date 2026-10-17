@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.3] - unreleased
+
+### Fixed
+- **Single-runtime items were sliced by the multi-stack file rules** (`--runtime` / `config.runtime`, which `init --framework <rt>` sets): an item whose own `runtime` equals the requested runtime is now installed in full. Before, `add` against a per-runtime registry dropped every Solid view (`*.tsx` does not match the `*.solid.tsx` rule: `skip button (no files for runtime solid)`, blocks installed only their `*.types.ts`) and dropped files of templ/Twig/Latte items that match no rule (`ui/lucide-icon/lucide_icons.go`: templ build error `undefined: lucide`; `lucide-icons.json`). Multi-stack items (no item-level `runtime`) keep the 2.0.2 rules.
+
+### Added
+- **`jinja2` runtime / framework**: accepted by `init --framework`, `--runtime`, `config.runtime` and the registry item schema (`runtime: "jinja2"` was rejected by 2.0.2). File rule for multi-stack items: `*.j2`, `*.html.j2`, `*.jinja`, `*.jinja2`.
+- `isKnownRuntime` reads the `RUNTIMES` list (one source of truth).
+
+### Docs
+- `docs/commands.md`, `docs/registry-format.md`, `docs/configuration.md`, `docs/concepts.md`, `docs/scenarios/non-js.md`: jinja2, single-runtime items, targets of the server-template runtimes. No contract change (`contractVersion` stays `2.0.0`: additive enum value).
+
 ## [2.0.2] - unreleased
 
 Registry gap fixes found while validating per-runtime registries (`r/<runtime>/`) with the real CLI.

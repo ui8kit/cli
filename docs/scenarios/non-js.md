@@ -4,7 +4,7 @@ Use the CLI to drop kit files onto disk for Tailwind content scanning, Templ/Lat
 
 ## Goals
 
-- `framework: templ` (or `latte` / `twig` / `none`)
+- `framework: templ` (or `latte` / `twig` / `jinja2` / `none`)
 - Install under `internal/` (or `templates/`)
 - Skip JS core stubs when the registry has no JS utils
 

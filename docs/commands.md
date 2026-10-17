@@ -26,7 +26,7 @@ ui8kit init [options]
 |--------|-------------|
 | `-y, --yes` | Non-interactive defaults |
 | `-r, --registry <type>` | Registry type (default `ui`) |
-| `--framework <name>` | `react\|svelte\|vue\|solid\|templ\|latte\|twig\|none` |
+| `--framework <name>` | `react\|svelte\|vue\|solid\|templ\|latte\|twig\|jinja2\|none` |
 | `--runtime <name>` | Default runtime slice |
 | `--dir <path>` | Install root |
 | `--skip-core` | Do not fetch lib/utils/variants on init |
@@ -92,6 +92,9 @@ Registry bricks often ship **all** stacks in one item (no per-item `runtime`). W
 | `templ` | `*.templ`, `*_templ.go`, `*_gen.go` |
 | `latte` | `*.latte` |
 | `twig` | `*.twig` / `*.html.twig` |
+| `jinja2` | `*.j2` / `*.html.j2` / `*.jinja` / `*.jinja2` |
+
+**Single-runtime items are never sliced** (since 2.0.3): when the item itself declares `runtime` and it equals the requested runtime (per-runtime registries such as `https://registry.buildy.tw/solid`), every file of the item is written, whatever its extension (`*.tsx` for Solid, `lucide_icons.go` for templ, `lucide-icons.json` for Twig/Latte/Jinja2, …). The table above applies to multi-stack items (no item-level `runtime`).
 
 Also always kept:
 
