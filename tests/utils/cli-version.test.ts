@@ -9,7 +9,24 @@ afterEach(() => {
   for (const d of tmp.splice(0)) fs.rmSync(d, { recursive: true, force: true })
 })
 
-/** <root>/package.json (host), <root>/node_modules/ui8kit/{package.json,dist/index.js}, <root>/node_modules/.bin/ui8kit -> ../ui8kit/dist/index.js */
+/**
+ * <root>/package.json (host), <root>/node_modules/ui8kit/{package.json,dist/index.js},
+ * <root>/node_modules/.bin/ui8kit -> ../ui8kit/dist/index.js.
+ * On Windows a file symlink needs SeCreateSymbolicLinkPrivilege and throws EPERM.
+ * A directory junction to dist/ does not; realpath lands on the same directory.
+ */
+function linkBin(binDir: string, entry: string): string {
+  const link = path.join(binDir, "ui8kit")
+  try {
+    fs.symlinkSync(path.relative(binDir, entry), link)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (process.platform !== "win32" || (code !== "EPERM" && code !== "ENOTSUP")) throw err
+    fs.symlinkSync(path.dirname(entry), link, "junction")
+  }
+  return link
+}
+
 function layout(host: Record<string, unknown>) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "ui8kit-version-"))
   tmp.push(root)
@@ -21,8 +38,7 @@ function layout(host: Record<string, unknown>) {
   fs.writeFileSync(entry, "#!/usr/bin/env node\n")
   const bin = path.join(root, "node_modules", ".bin")
   fs.mkdirSync(bin, { recursive: true })
-  fs.symlinkSync(path.relative(bin, entry), path.join(bin, "ui8kit"))
-  return { root, pkg, entry, bin: path.join(bin, "ui8kit") }
+  return { root, pkg, entry, bin: linkBin(bin, entry) }
 }
 
 describe("CLI version", () => {
