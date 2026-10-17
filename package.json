@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "CLI to install and maintain UI8Kit component/block registries (multi-runtime, file-based)",
   "type": "module",
   "bin": {

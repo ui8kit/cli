@@ -1,6 +1,11 @@
 # Changelog
 
-## [2.0.3] - unreleased
+## [2.0.4] - unreleased
+
+### Fixed
+- **`ui8kit --version` (and `info`) printed the wrong version**: `0.0.0` under `npx` (the npx cache manifest has no version) and the consumer project's own version when run through `node_modules/.bin/ui8kit`. The version is now read from the CLI's own module directory first, then from the symlink-resolved entry script, and only a `package.json` named `ui8kit` is accepted. Tests cover the npx cache layout, a bin symlink inside a project with its own `package.json`, and a direct run.
+
+## [2.0.3] - 2026-10-17
 
 ### Fixed
 - **Single-runtime items were sliced by the multi-stack file rules** (`--runtime` / `config.runtime`, which `init --framework <rt>` sets): an item whose own `runtime` equals the requested runtime is now installed in full. Before, `add` against a per-runtime registry dropped every Solid view (`*.tsx` does not match the `*.solid.tsx` rule: `skip button (no files for runtime solid)`, blocks installed only their `*.types.ts`) and dropped files of templ/Twig/Latte items that match no rule (`ui/lucide-icon/lucide_icons.go`: templ build error `undefined: lucide`; `lucide-icons.json`). Multi-stack items (no item-level `runtime`) keep the 2.0.2 rules.
