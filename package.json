@@ -1,7 +1,7 @@
 {
   "name": "ui8kit",
   "version": "2.0.4",
-  "description": "CLI to install and maintain UI8Kit component/block registries (multi-runtime, file-based)",
+  "description": "CLI to install and maintain UI8Kit component/block registries (multi-runtime: React, Svelte, Vue, Solid, Templ, Twig, Latte, Jinja2; file-based)",
   "type": "module",
   "bin": {
     "ui8kit": "./dist/index.js"
@@ -43,6 +43,9 @@
     "solid",
     "vue",
     "templ",
+    "twig",
+    "latte",
+    "jinja2",
     "codegen",
     "registry"
   ],

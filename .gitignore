@@ -12,3 +12,9 @@ bun.lockb
 bash.exe.*
 .manual/
 .workflow/
+
+# junk
+coverage/
+*.tgz
+/cache
+/clears

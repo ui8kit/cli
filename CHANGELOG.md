@@ -4,6 +4,11 @@
 
 ### Fixed
 - **`ui8kit --version` (and `info`) printed the wrong version**: `0.0.0` under `npx` (the npx cache manifest has no version) and the consumer project's own version when run through `node_modules/.bin/ui8kit`. The version is now read from the CLI's own module directory first, then from the symlink-resolved entry script, and only a `package.json` named `ui8kit` is accepted. Tests cover the npx cache layout, a bin symlink inside a project with its own `package.json`, and a direct run.
+- Tests: the bin-symlink case falls back to a directory junction on Windows when a file symlink is not permitted (EPERM without SeCreateSymbolicLinkPrivilege).
+
+### Chore
+- `package-lock.json`: esbuild pinned back to 0.27.7 (`@esbuild/*`).
+- Removed stray empty `cache` / `clears` files from the repo root and ignored them; `.gitattributes` forces LF; README/package keywords list all runtimes (incl. Twig, Latte, Jinja2).
 
 ## [2.0.3] - 2026-10-17
 
