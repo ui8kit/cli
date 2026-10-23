@@ -26,7 +26,7 @@ ui8kit init [options]
 |--------|-------------|
 | `-y, --yes` | Non-interactive defaults |
 | `-r, --registry <type>` | Registry type (default `ui`) |
-| `--framework <name>` | `react\|vue\|svelte\|solid\|webcomponent\|none`; legacy 2.0 digest only: `templ\|latte\|twig\|jinja2` |
+| `--framework <name>` | `react\|vue\|svelte\|solid\|webcomponent\|templ\|latte\|twig\|jinja2\|none` (server runtimes: no package.json, toolchain commands printed) |
 | `--runtime <name>` | Registry runtime (defaults to framework) |
 | `--dir <path>` | Install root |
 | `--skip-core` | Do not fetch utils/lib and agent rules on init |
@@ -41,7 +41,7 @@ ui8kit init [options]
 ui8kit init
 ui8kit init --yes --framework svelte --dir web/src
 ui8kit init --yes --framework webcomponent --dir src
-ui8kit init --yes --framework templ --dir internal --registry-version 2.0.0   # legacy digest
+ui8kit init --yes --framework templ --dir internal   # go.mod module → utils import rewrite
 ui8kit init --yes --registry-url https://cdn.example.com/r --strict-cdn
 ```
 
@@ -82,7 +82,7 @@ Interactive mode (no names, no `--all`) prompts for selection when a TTY is avai
 
 ### Runtime file filter
 
-The 3.x registry is per-runtime (one runtime per item). Multi-stack items (legacy 2.0 digest, custom registries) ship **all** stacks in one item; with `--runtime` / `config.runtime`, `add` keeps:
+The 3.x registry is per-runtime (one runtime per item). Multi-stack items (2.0 digest, custom registries) ship **all** stacks in one item; with `--runtime` / `config.runtime`, `add` keeps:
 
 | Runtime | Files kept (plus shared) |
 |---------|--------------------------|
@@ -91,10 +91,10 @@ The 3.x registry is per-runtime (one runtime per item). Multi-stack items (legac
 | `svelte` | `*.svelte` |
 | `vue` | `*.vue` |
 | `webcomponent` | `*.wc.ts` |
-| `templ` (legacy) | `*.templ`, `*_templ.go`, `*_gen.go` |
-| `latte` (legacy) | `*.latte` |
-| `twig` (legacy) | `*.twig` / `*.html.twig` |
-| `jinja2` (legacy) | `*.j2` / `*.html.j2` / `*.jinja` / `*.jinja2` |
+| `templ` | `*.templ`, `*_templ.go`, `*_gen.go` |
+| `latte` | `*.latte` |
+| `twig` | `*.twig` / `*.html.twig` |
+| `jinja2` | `*.j2` / `*.html.j2` / `*.jinja` / `*.jinja2` |
 
 **Single-runtime items are never sliced** (since 2.0.3): when the item itself declares `runtime` and it equals the requested runtime (per-runtime registries such as `https://registry.buildy.tw/solid`), every file of the item is written, whatever its extension (`*.tsx` for Solid, `lucide_icons.go` for templ, `lucide-icons.json` for Twig/Latte/Jinja2, …). The table above applies to multi-stack items (no item-level `runtime`).
 

@@ -27,7 +27,7 @@ This docs set covers concepts, configuration, every command, the registry JSON c
 |----------|----------|
 | [Consumer app (React)](./scenarios/consumer-react.md) | App teams installing primitives |
 | [Svelte / Solid / Vue](./scenarios/multi-runtime.md) | Multi-runtime digests |
-| [Go Templ / PHP (legacy 2.0 digest)](./scenarios/non-js.md) | Kit on disk without a JS framework |
+| [Server runtimes: templ / Twig / Latte / Jinja2](./scenarios/non-js.md) | go.mod import rewrite, go/composer/pip hints, PSR-4 |
 | [Private / strict CDN](./scenarios/private-cdn.md) | Locked registry URL + version pin |
 | [Maintain & publish registry](./scenarios/maintain-registry.md) | Authors assembling `packages/registry/r` |
 | [CI dry-run & upgrades](./scenarios/ci-and-upgrades.md) | Automation, `diff`, force updates |

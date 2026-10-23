@@ -151,7 +151,7 @@ export async function adoptInstalled(
   const mismatches: CheckIssue[] = []
   for (const component of components) {
     const matched: Array<{ rel: string; content: string }> = []
-    for (const { rel, content } of planItemFiles(component, config, runtime)) {
+    for (const { rel, content } of planItemFiles(component, config, runtime, { cwd })) {
       const disk = await read(rel)
       if (disk === null) continue
       if (hashContent(disk) === hashContent(content)) matched.push({ rel, content })

@@ -47,14 +47,23 @@ Remap safely at the same depth (e.g. `"paths": { "ui": "kit" }`); keep `utils` a
 
 - **Default = CLI major**: ui8kit 3.x fetches `@ui8kit/registry@3` → `…/r/<runtime>/` (newest 3.x.y; not pinned).
 - **Pin**: `--registry-version 3.0.0` or `"registryVersion": "3.0.0"` (ranges like `3.1` and dist-tags like `canary` work too).
-- **Legacy stacks** (templ, latte, twig, jinja2) exist only in the frozen 2.0 digest:
-
-```bash
-npx ui8kit@3 init --yes --framework templ --dir internal --registry-version 2.0.0
-npx ui8kit@3 add button --runtime templ
-```
+- **Server runtimes** (templ, latte, twig, jinja2) are first-class in 3.2 (`r/<runtime>/` of `@ui8kit/registry@3`); see [Server runtimes](#server-runtimes-templ-latte-twig-jinja2).
 
 CDN order: `--registry-url` / `registryUrl` → `cdnBaseUrls` → built-in unpkg / jsDelivr. `--strict-cdn` + explicit URL → only that URL. URL `registryDependencies` resolve bare names against the item's own registry base. Details: [docs/cdn-and-cache.md](./docs/cdn-and-cache.md).
+
+## Server runtimes (templ, latte, twig, jinja2)
+
+```bash
+npx ui8kit@3 init --yes --framework templ --dir internal     # or latte / twig / jinja2 (e.g. --dir templates)
+npx ui8kit@3 add button
+```
+
+- `init` writes only `ui8kit.config.json` (`typescript: false`), `ui8kit.lock.json`, `.cursor/rules/` and `{dir}/utils` (templ), `{dir}/runtime` (twig/latte) or `{dir}/ui8kit_jinja` (jinja2). No `package.json`, no tsconfig; `add` does not require a `package.json` either.
+- **Toolchain deps are never installed automatically** and never go to npm. After `init` / `add` the CLI prints the exact commands once (deduped) from the item `meta`: `go get github.com/a-h/templ@v…`, `composer require "twig/twig:^3.0"`, `pip install "Jinja2>=3.1,<4"` (double quotes: works in bash, PowerShell and cmd).
+- **templ**: generated code imports `github.com/ui8kit/codegen/generated/templ/utils`. With a `go.mod` in the app root the CLI rewrites it (in `*.templ` and `*.go`) to `<module>/<utils dir>`, e.g. `example.com/app/internal/utils`. Without `go.mod` the import is left as is and a warning prints the fix: `go mod init <module>` + `ui8kit add <items> --force`, or replace the import by hand. Then `templ generate && go build ./...`.
+- **twig / latte**: the CLI prints a PSR-4 snippet (`"UI8Kit\\Twig\\": "<dir>/runtime/"` / `UI8Kit\\Latte\\`) for your `composer.json`; it never edits `composer.json`. Run `composer dump-autoload`. Twig: `$twig->addExtension(new \UI8Kit\Twig\TwigExtension())`.
+- **jinja2**: `ui8kit_jinja/` sits next to `ui/`; `from ui8kit_jinja import environment` → `environment().get_template("ui/button/button.html.j2").render(p={...}, children=...)`.
+- `ui8kit check` works the same. Note: `templ generate` rewrites `*_templ.go` (e.g. source `FileName` paths), so `check` reports those files as `modified` afterwards; re-adopt with `check --adopt` or treat `*_templ.go` as build output.
 
 ## Config (`ui8kit.config.json`)
 

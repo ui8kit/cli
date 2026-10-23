@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-23
+
+### Added
+- Server runtimes (`templ`, `latte`, `twig`, `jinja2`) are first-class 3.x runtimes (`src/utils/server-runtime.ts`).
+- templ: the generated import `github.com/ui8kit/codegen/generated/templ/utils` (item `meta.go.importPath`) is rewritten in `*.templ` / `*.go` to `<go.mod module>/<utils dir>` (honours `dir` / `paths`; part of the planned content, so lock and `check` agree). No go.mod → warning with the exact manual fix.
+- After `init` / `add`: exact toolchain commands printed once, deduped, from item `meta` (`go get …`, `composer require "pkg:constraint"`, `pip install "req"`), plus a PSR-4 `composer.json` snippet for `UI8Kit\\Twig\\` / `UI8Kit\\Latte\\` (`<dir>` substituted). Nothing is executed; `composer.json` is never modified.
+
+### Changed
+- `init` for server runtimes no longer creates `package.json` and writes `typescript: false`; `add` no longer requires `package.json` when `config.runtime` is a server runtime.
+- npm `dependencies` of server-runtime items are never passed to npm (warning instead).
+- Removed stale "legacy 2.0 digest" labels for templ/latte/twig/jinja2 (CLI help, config schema description, package description/keywords, docs).
+
 ## [3.1.1] - 2026-10-23
 
 ### Changed

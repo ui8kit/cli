@@ -28,10 +28,14 @@ Update `CHANGELOG.md`, README / `docs/` when behavior changes. CI runs Linux (No
 
 ## Facts to keep straight
 
-- Registry `>= 3` is per-runtime: `r/{react,vue,svelte,solid,webcomponent}/`. Default version = CLI major (`@3`), not `@latest`.
+- Registry `>= 3` is per-runtime: `r/{react,vue,svelte,solid,webcomponent,templ,latte,twig,jinja2}/`. Default version = CLI major (`@3`), not `@latest`.
 - Bricks install to `{dir}/ui/<brick>/`; utils to `{dir}/utils` (bricks import `../../utils`).
 - `registry:rules` is installed by `init` only, to `.cursor/rules/ui8kit-primitives.mdc` (`{kit}`, `{globs}` substituted).
-- templ/latte/twig/jinja2 are legacy: frozen 2.0.0 digest (`--registry-version 2.0.0`).
+- templ/latte/twig/jinja2 are first-class 3.x runtimes (`r/<runtime>/`), see `src/utils/server-runtime.ts`:
+  - no `package.json` is created or required; item npm `dependencies` are never npm-installed for them;
+  - go/composer/pip deps come from item `meta` (`meta.go.require`, `meta.composer.require`, `meta.python.requirements`) and are only **printed** (once, deduped). Never run them on the user's behalf unless asked;
+  - templ: `github.com/ui8kit/codegen/generated/templ/utils` is rewritten to `<go.mod module>/<utils dir>` at plan time (so lock/check hashes include it); no go.mod → warning with manual fix;
+  - twig/latte: PSR-4 snippet printed from `meta.composer.autoload` (`<dir>` substituted); `composer.json` is never modified.
 - `--import-style package` is deprecated (warns).
 
 ## Rules

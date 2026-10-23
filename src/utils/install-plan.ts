@@ -4,6 +4,7 @@ import { SCHEMA_CONFIG } from "./schema-config.js"
 import { assertSafeRegistryPath, normalizeDir, resolveFileInstallPath, toPosix } from "./paths.js"
 import { filterFilesForRuntime } from "./runtime-files.js"
 import { applyTransforms, shouldTransformFile } from "./transform.js"
+import { isGoSourceFile, transformTemplContent } from "./server-runtime.js"
 
 export interface PlannedFile {
   /** Registry file entry. */
@@ -35,10 +36,16 @@ export function renderRulesContent(content: string, component: Component, config
  * Files an item installs, with their final paths and contents. Shared by `init`, `add`
  * and `check` so the lock hashes match what was written.
  *  - `registry:rules`: target relative to the app root, `{kit}` / `{globs}` substituted;
- *  - others: `--runtime` filter → `resolveFileInstallPath` → import transforms.
+ *  - others: `--runtime` filter → `resolveFileInstallPath` → import transforms;
+ *  - templ `*.go` / `*.templ`: the generated utils import is rewritten to `<go.mod module>/<utils dir>`.
  * An item whose own `runtime` differs from `runtime` installs nothing.
  */
-export function planItemFiles(component: Component, config: Config, runtime?: string): PlannedFile[] {
+export function planItemFiles(
+  component: Component,
+  config: Config,
+  runtime?: string,
+  opts: { cwd?: string } = {},
+): PlannedFile[] {
   if (component.type === "registry:rules") {
     return component.files.map((file) => {
       const rel = toPosix(file.target?.trim() || file.path)
@@ -53,9 +60,12 @@ export function planItemFiles(component: Component, config: Config, runtime?: st
   })
   return files.map((file) => {
     const rel = toPosix(resolveFileInstallPath(file, component.type, config))
+    const isTempl = (component.runtime ?? runtime) === "templ"
     const content = shouldTransformFile(path.posix.basename(rel))
       ? applyTransforms(file.content || "", config.aliases, config.importStyle || "alias")
-      : file.content || ""
+      : isTempl && isGoSourceFile(rel)
+        ? transformTemplContent(file.content || "", component, config, opts.cwd)
+        : file.content || ""
     return { file, rel, content }
   })
 }

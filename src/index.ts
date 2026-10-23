@@ -85,7 +85,7 @@ program
   .description("Create ui8kit.config.json and install utils + agent rules (.cursor/rules)")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option("-r, --registry <type>", "Registry type", "ui")
-  .option("--framework <name>", "react|vue|svelte|solid|webcomponent|none (legacy 2.0 digest: templ|latte|twig|jinja2)")
+  .option("--framework <name>", "react|vue|svelte|solid|webcomponent|templ|latte|twig|jinja2|none")
   .option("--runtime <name>", "Registry runtime (defaults to framework)")
   .option("--dir <path>", "Install root (src, web/src, internal, …)")
   .option("--skip-core", "Do not fetch utils/lib from registry on init")

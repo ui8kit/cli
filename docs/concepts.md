@@ -28,7 +28,7 @@ Keep consumer configs and published registries aligned on the same major contrac
 
 | Field | Role |
 |-------|------|
-| `framework` | Project stack hint: `react` \| `vue` \| `svelte` \| `solid` \| `webcomponent` \| `none` (legacy 2.0 digest: `templ` \| `latte` \| `twig` \| `jinja2`) |
+| `framework` | Project stack hint: `react` \| `vue` \| `svelte` \| `solid` \| `webcomponent` \| `templ` \| `latte` \| `twig` \| `jinja2` \| `none` |
 | `runtime` | Registry slice / file filter when digests publish multiple stacks (often equals framework for JS) |
 
 Examples:

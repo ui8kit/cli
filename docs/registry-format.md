@@ -133,7 +133,7 @@ https://cdn.example.com/ui8kit@0.1.0-react/r/...
 
 Consumers select with `--runtime` and/or `--registry-version`. Item-level `runtime` skips the whole package when it differs from the requested runtime; when it is equal, every file of the item is installed (no file-level slicing, since 2.0.3). The file-level filter applies only when the field is omitted and multiple stacks share one JSON.
 
-Runtimes (`runtime` field and `--runtime`): `react`, `vue`, `svelte`, `solid`, `webcomponent`; legacy (2.0 digest): `templ`, `latte`, `twig`, `jinja2`. For the server-template runtimes (`templ`, `latte`, `twig`, `jinja2`) file `target`s are relative to the template root (Go module root, Twig/Latte/Jinja2 loader root), e.g. `ui/button/button.html.twig`, `blocks/hero-split.latte`; npm `dependencies` stay empty (toolchain requirements are not npm packages).
+Runtimes (`runtime` field and `--runtime`): `react`, `vue`, `svelte`, `solid`, `webcomponent`, `templ`, `latte`, `twig`, `jinja2`. For the server-template runtimes (`templ`, `latte`, `twig`, `jinja2`) file `target`s are relative to the template root (Go module root, Twig/Latte/Jinja2 loader root), e.g. `ui/button/button.html.twig`, `blocks/hero-split.latte`; npm `dependencies` stay empty (toolchain requirements are not npm packages; the CLI never npm-installs them for these runtimes). Toolchain metadata on the `utils` item, printed by the CLI as commands: `meta.go` (`importPath` — rewritten to `<go.mod module>/<utils dir>` — and `require: ["mod@vX"]`), `meta.composer` (`require`, `autoload.psr-4` with a `<dir>` placeholder), `meta.python` (`requirements`).
 
 ## Validation
 

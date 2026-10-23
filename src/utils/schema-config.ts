@@ -173,7 +173,7 @@ export const SCHEMA_CONFIG = {
   fieldDescriptions: {
     schema: "JSON Schema URL",
     framework: "Project framework / stack hint",
-    runtime: "Registry runtime: react|vue|svelte|solid|webcomponent (legacy 2.0 digest: templ|latte|twig|jinja2)",
+    runtime: "Registry runtime: react|vue|svelte|solid|webcomponent|templ|latte|twig|jinja2",
     typescript: "Whether the project uses TypeScript",
     globalCss: "Path to global styles entry (Tailwind)",
     dir: "Install root for kit files (src, web/src, internal, …)",

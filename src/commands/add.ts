@@ -22,6 +22,7 @@ import {
 import { applyPathOverrides, assertInsideRoot } from "../utils/paths.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
 import { assertKnownRuntime } from "../utils/runtime-files.js"
+import { collectToolchainHints, isServerRuntime, printToolchainHints } from "../utils/server-runtime.js"
 
 interface AddOptions {
   force?: boolean
@@ -214,6 +215,7 @@ async function processComponents(
   totalCount?: number,
   explicitNames?: ReadonlySet<string>,
   lockEntries?: LockEntryInput[],
+  installed?: Component[],
 ): Promise<Array<{ name: string; status: "success" | "error"; error?: string }>> {
   const results: Array<{ name: string; status: "success" | "error"; error?: string }> = []
   const componentMap = new Map(preloadedComponents?.map(c => [c.name.toLowerCase(), c]))
@@ -323,7 +325,12 @@ async function processComponents(
         })
       }
 
-      if (component.dependencies.length > 0) {
+      installed?.push(component)
+      // Server runtimes (templ/latte/twig/jinja2): toolchain deps come from `meta`, never npm.
+      const serverItem = isServerRuntime(component.runtime ?? preferredRuntime)
+      if (serverItem && component.dependencies.length > 0) {
+        logger.warn(`   ${component.name}: npm dependencies ignored for server runtime (${component.dependencies.join(", ")})`)
+      } else if (component.dependencies.length > 0) {
         try {
           await installDependencies(component.dependencies)
         } catch (error) {
@@ -455,6 +462,7 @@ async function installRequestedComponents(
 
   const explicitNames = new Set(normalizedRequested.map(normalizeDependencyName))
   const lockEntries: LockEntryInput[] = []
+  const installed: Component[] = []
   const processingResults = await processComponents(
     orderedComponents.map(component => component.name),
     registryType,
@@ -465,6 +473,7 @@ async function installRequestedComponents(
     orderedComponents.length,
     explicitNames,
     lockEntries,
+    installed,
   )
   if (!options.dryRun) {
     try {
@@ -472,6 +481,7 @@ async function installRequestedComponents(
     } catch (error) {
       logger.warn(`Could not update ui8kit.lock.json: ${(error as Error).message}`)
     }
+    printToolchainHints(collectToolchainHints(installed, config), logger)
   }
   return [...missingResults, ...processingResults]
 }

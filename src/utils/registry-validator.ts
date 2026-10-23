@@ -3,6 +3,7 @@ import prompts from "prompts"
 import { findConfig } from "./project.js"
 import { initCommand } from "../commands/init.js"
 import { pathExists } from "./fs.js"
+import { isServerRuntime } from "./server-runtime.js"
 
 export interface ValidationResult {
   isValid: boolean
@@ -18,7 +19,9 @@ export async function validateComponentInstallation(
   registryType: string
 ): Promise<ValidationResult> {
   const packageJsonPath = path.join(process.cwd(), "package.json")
-  if (!(await pathExists(packageJsonPath))) {
+  // Server runtimes (templ/latte/twig/jinja2) need no package.json: the config marks the project root.
+  const serverProject = isServerRuntime((await findConfig(registryType))?.runtime)
+  if (!serverProject && !(await pathExists(packageJsonPath))) {
     return {
       isValid: false,
       message: "No package.json found in the current directory. Run this command from your project root."

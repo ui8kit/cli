@@ -1,75 +1,82 @@
-# Scenario: Go Templ / PHP (non-JS apps)
+# Scenario: server runtimes (Go templ, Twig, Latte, Jinja2)
 
-> **Legacy.** templ / latte / twig / jinja2 are not in the 3.x per-runtime registry. They exist only in the frozen `@ui8kit/registry@2.0.0` digest: add `--registry-version 2.0.0` (or `"registryVersion": "2.0.0"`).
+CLI 3.2+ treats `templ`, `latte`, `twig` and `jinja2` as first-class runtimes of `@ui8kit/registry@3` (`r/<runtime>/`).
+The frozen 2.0 digest is still reachable with `--registry-version 2.0.0`.
 
-Use the CLI to drop kit files onto disk for Tailwind content scanning, Templ/Latte/Twig includes, or shared CSS — even when the app is not a Node SPA.
+## What `init` creates
 
-## Goals
+Only what the runtime needs: `ui8kit.config.json` (`typescript: false`), `ui8kit.lock.json`, `.cursor/rules/ui8kit-primitives.mdc` and the runtime helpers:
 
-- `framework: templ` (or `latte` / `twig` / `jinja2` / `none`)
-- Install under `internal/` (or `templates/`)
-- Skip JS core stubs when the registry has no JS utils
+| Runtime | Helpers | Bricks |
+|---------|---------|--------|
+| `templ` | `{dir}/utils/*.go` | `{dir}/ui/<brick>/*.templ`, `*_templ.go` |
+| `twig` | `{dir}/runtime/*.php` (`UI8Kit\Twig`) | `{dir}/ui/<brick>/*.html.twig` |
+| `latte` | `{dir}/runtime/*.php` (`UI8Kit\Latte`) | `{dir}/ui/<brick>/*.latte` |
+| `jinja2` | `{dir}/ui8kit_jinja/*.py` | `{dir}/ui/<brick>/*.html.j2` |
 
-## Go Templ
+No `package.json` / tsconfig is created, and `add` works without `package.json`.
 
-```bash
-cd my-go-site
-npx ui8kit init --yes \
-  --framework templ \
-  --runtime templ --registry-version 2.0.0 \
-  --dir internal \
-  --skip-core \
-  --registry-url https://cdn.example.com/ui8kit/r \
-  --strict-cdn
-```
+## Toolchain dependencies
 
-```bash
-npx ui8kit add button card \
-  --runtime templ --registry-version 2.0.0 \
-  --registry-url https://cdn.example.com/ui8kit/r \
-  --strict-cdn
-```
-
-Layout example:
+Never installed automatically, never passed to npm. After `init` / `add` the CLI prints, once and deduped, the commands from the items' `meta`:
 
 ```text
-internal/
-  components/ui/button/...
-  blocks/...
-  layouts/...
-ui8kit.config.json
+go get github.com/a-h/templ@v0.3.1070
+composer require "twig/twig:^3.0"
+composer require "latte/latte:^3.0"
+pip install "Jinja2>=3.1,<4"
 ```
 
-Point Tailwind (whatever builds your CSS) at `internal/**`.
-
-## Latte / Twig
+## Go templ
 
 ```bash
-npx ui8kit@3 init --yes --framework latte --dir templates --skip-core --registry-version 2.0.0 \
-  --registry-url https://cdn.example.com/ui8kit/r --strict-cdn
-
-npx ui8kit@3 add hero --runtime latte --registry-version 2.0.0 \
-  --registry-url https://cdn.example.com/ui8kit/r --strict-cdn
+cd my-go-site            # contains go.mod: module example.com/app
+npx ui8kit@3 init --yes --framework templ --dir internal
+npx ui8kit@3 add button
+go get github.com/a-h/templ@v0.3.1070
+templ generate && go build ./...
 ```
 
-## Config snapshot
+Generated code imports `github.com/ui8kit/codegen/generated/templ/utils`; the CLI rewrites it in `*.templ` and `*.go` to `<module>/<utils dir>` (here `example.com/app/internal/utils`; `dir` / `paths` are honoured). go.mod is read from the current directory. Without it the import stays unchanged and the CLI warns; fix with `go mod init <module>` and `npx ui8kit@3 add <items> --force`, or replace the import manually.
+
+`templ generate` regenerates `*_templ.go` (it embeds the source path), so `ui8kit check` reports them as `modified` afterwards — re-run `ui8kit check --adopt` or treat them as build output.
+
+## Twig / Latte
+
+```bash
+npx ui8kit@3 init --yes --framework twig --dir templates
+npx ui8kit@3 add button
+composer require "twig/twig:^3.0"
+```
+
+The CLI prints a PSR-4 snippet; add it to `composer.json` yourself (the CLI never edits it) and run `composer dump-autoload`:
 
 ```json
-{
-  "contractVersion": "2.0.0",
-  "framework": "templ",
-  "runtime": "templ",
-  "registryVersion": "2.0.0",
-  "typescript": false,
-  "dir": "internal",
-  "registryUrl": "https://cdn.example.com/ui8kit/r",
-  "strictCdn": true,
-  "importStyle": "alias"
-}
+{ "autoload": { "psr-4": { "UI8Kit\\Twig\\": "templates/runtime/" } } }
+```
+
+```php
+$twig = new \Twig\Environment(new \Twig\Loader\FilesystemLoader(__DIR__.'/templates'));
+$twig->addExtension(new \UI8Kit\Twig\TwigExtension());
+echo $twig->render('ui/button/Button.html.twig', ['children' => 'Save']);
+```
+
+Latte (`UI8Kit\\Latte\\`): `(new \Latte\Engine)->renderToString(__DIR__.'/templates/ui/button/Button.latte', ['children' => 'Save'])`.
+
+## Jinja2
+
+```bash
+npx ui8kit@3 init --yes --framework jinja2 --dir templates
+npx ui8kit@3 add button
+pip install "Jinja2>=3.1,<4"
+```
+
+```python
+from ui8kit_jinja import environment   # run with templates/ on sys.path
+print(environment().get_template("ui/button/button.html.j2").render(p={"Type": "submit"}, children="Save"))
 ```
 
 ## Pitfalls
 
-- Without `--skip-core`, init may warn if the CDN has no lib/utils for that runtime — harmless if you only need UI/blocks.
-- npm dependency installs from items still need a `package.json` in cwd when items declare JS deps; pure markup items often declare none.
-- Keep `strictCdn` on so CI never silently pulls a public React digest.
+- Point Tailwind (whatever builds your CSS) at `{dir}/**`.
+- Use `--strict-cdn` with a private `--registry-url` so CI never silently falls back to a public registry.

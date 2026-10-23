@@ -27,6 +27,7 @@ import { detectFrameworkHint, findConfig, saveConfig, hasPackageJson } from "../
 import { ensureDir as fsEnsureDir, writeFile, writeJson } from "../utils/fs.js"
 import { planItemFiles, renderRulesContent } from "../utils/install-plan.js"
 import { exactVersion, updateLock, type LockEntryInput } from "../utils/lock.js"
+import { collectToolchainHints, isServerRuntime, printToolchainHints } from "../utils/server-runtime.js"
 
 export { renderRulesContent }
 
@@ -123,7 +124,8 @@ export function buildInitConfig(options: InitConfigOptions): Config {
     contractVersion: SCHEMA_CONFIG.cliContractVersion,
     framework,
     runtime,
-    typescript: true,
+    // Server runtimes ship no TS sources.
+    typescript: !isServerRuntime(runtime),
     globalCss,
     dir,
     aliases,
@@ -153,7 +155,9 @@ export async function initCommand(options: InitOptions) {
 
   logger.info(CLI_MESSAGES.info.initializing(registryName))
 
-  if (!(await hasPackageJson())) {
+  // Server runtimes (templ/latte/twig/jinja2) need no package.json: deps are go/composer/pip.
+  const serverRuntime = isServerRuntime(asRuntime(options.runtime, asFramework(options.framework || (await detectFrameworkHint()))))
+  if (!serverRuntime && !(await hasPackageJson())) {
     logger.warn("No package.json found — creating minimal package.json for CLI tooling.")
     await writeJson(
       path.join(process.cwd(), "package.json"),
@@ -250,13 +254,14 @@ export async function initCommand(options: InitOptions) {
 
     // No empty scaffolding: only folders the installed files actually use are created.
     let written: string[] = []
+    let coreComponents: Component[] = []
     if (!options.skipCore) {
       spinner.text = "Installing core utils from registry (best-effort)..."
-      written = await installCoreFiles(registryName as RegistryType, config, spinner, {
+      ;({ written, components: coreComponents } = await installCoreFiles(registryName as RegistryType, config, spinner, {
         ...cdnOptions,
         cdnBaseUrls: config.cdnBaseUrls,
         runtime: config.runtime,
-      })
+      }))
     }
 
     spinner.succeed(CLI_MESSAGES.success.initialized(registryName))
@@ -267,6 +272,7 @@ export async function initCommand(options: InitOptions) {
       console.log("\nInstalled into:")
       for (const dir of dirs) console.log(`  ${dir}/`)
     }
+    printToolchainHints(collectToolchainHints(coreComponents, config), logger)
     console.log("\nNext steps:")
     CLI_MESSAGES.examples.init.forEach((example) => console.log(`  ${example}`))
   } catch (error) {
@@ -292,7 +298,7 @@ async function installCoreFiles(
   config: Config,
   spinner: Spinner,
   cdnResolution: CdnResolutionOptions = {},
-): Promise<string[]> {
+): Promise<{ written: string[]; components: Component[] }> {
   const cdnUrls = getCdnUrls(registryType, cdnResolution)
 
   let registryIndex: RegistryIndex | null = null
@@ -307,7 +313,7 @@ async function installCoreFiles(
   if (!registryIndex) {
     spinner.text = "Registry unreachable — skipping core install"
     logger.warn("Could not reach registry to install core lib/utils/variants")
-    return []
+    return { written: [], components: [] }
   }
 
   const coreRefs = registryIndex.components.filter(
@@ -320,7 +326,7 @@ async function installCoreFiles(
 
   if (coreRefs.length === 0) {
     spinner.text = "No core registry items found — skipping"
-    return []
+    return { written: [], components: [] }
   }
 
   const loaded: CoreComponentDescriptor[] = []
@@ -356,6 +362,10 @@ async function installCoreFiles(
     logger.warn(`Could not write ui8kit.lock.json: ${(error as Error).message}`)
   }
 
+  if (isServerRuntime(config.runtime)) {
+    if (deps.size > 0) logger.warn(`npm dependencies ignored for server runtime ${config.runtime}: ${[...deps].join(", ")}`)
+    deps.clear()
+  }
   if (deps.size > 0) {
     spinner.text = "Installing core dependencies..."
     try {
@@ -366,7 +376,7 @@ async function installCoreFiles(
   }
 
   spinner.text = `Installed ${loaded.length} core items`
-  return written
+  return { written, components: loaded.map((d) => d.component) }
 }
 
 async function fetchCoreComponent(
