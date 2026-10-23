@@ -193,6 +193,20 @@ describe("build command", () => {
 
     expect(await pathExists(path.join(outputDir, "index.json"))).toBe(true)
     expect(await pathExists(path.join(fixture, "packages", "registry", "ui8kit.map.json"))).toBe(false)
+    expect((await readJson(path.join(outputDir, "index.json"))).version).toBe("1.0.0")
+  })
+
+  it("stamps registry.json version into index.json", async () => {
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+    const registryPath = path.join(fixture, "src", "registry.json")
+    await writeJson(registryPath, {
+      version: "3.0.0-local",
+      items: [{ name: "button", type: "registry:ui", files: [{ path: "src/components/ui/button.tsx" }] }],
+    })
+    const outputDir = path.join(fixture, "packages", "registry", "r")
+    await buildCommand(registryPath, { output: outputDir, cwd: fixture })
+    expect((await readJson(path.join(outputDir, "index.json"))).version).toBe("3.0.0-local")
   })
 
   it("resets cache before build", async () => {

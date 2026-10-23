@@ -8,6 +8,7 @@
 ### Fixed
 - **Security:** registry file targets/paths that are absolute or contain `..` are rejected, and every write is checked to stay inside the project directory.
 - Unknown `--runtime` (add/init) or `--framework` (init) now fails with an error instead of installing every runtime / silently falling back to `none`.
+- `build` writes `registry.json` `version` into `r/index.json` (was hard-coded `1.0.0`).
 - `init` "Next steps" and `add` examples no longer mention a non-existent `card` component.
 
 ## [2.0.4] - 2026-10-17
