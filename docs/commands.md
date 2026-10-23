@@ -26,21 +26,22 @@ ui8kit init [options]
 |--------|-------------|
 | `-y, --yes` | Non-interactive defaults |
 | `-r, --registry <type>` | Registry type (default `ui`) |
-| `--framework <name>` | `react\|svelte\|vue\|solid\|templ\|latte\|twig\|jinja2\|none` |
-| `--runtime <name>` | Default runtime slice |
+| `--framework <name>` | `react\|vue\|svelte\|solid\|webcomponent\|none`; legacy 2.0 digest only: `templ\|latte\|twig\|jinja2` |
+| `--runtime <name>` | Registry runtime (defaults to framework) |
 | `--dir <path>` | Install root |
-| `--skip-core` | Do not fetch lib/utils/variants on init |
+| `--skip-core` | Do not fetch utils/lib and agent rules on init |
 | `--registry-url <url>` | Registry base override |
 | `--registry-version <version>` | Registry version/range/dist-tag (default: CLI major) |
 | `--strict-cdn` | No CDN fallback when URL set |
-| `--import-style <alias\|package>` | Import rewrite style |
+| `--import-style <alias\|package>` | Import rewrite style; `package` is deprecated (warns) |
 
 ### Examples
 
 ```bash
 ui8kit init
 ui8kit init --yes --framework svelte --dir web/src
-ui8kit init --yes --framework templ --dir internal --skip-core
+ui8kit init --yes --framework webcomponent --dir src
+ui8kit init --yes --framework templ --dir internal --registry-version 2.0.0   # legacy digest
 ui8kit init --yes --registry-url https://cdn.example.com/r --strict-cdn
 ```
 
@@ -81,7 +82,7 @@ Interactive mode (no names, no `--all`) prompts for selection when a TTY is avai
 
 ### Runtime file filter
 
-Registry bricks often ship **all** stacks in one item (no per-item `runtime`). With `--runtime` / `config.runtime`, `add` keeps:
+The 3.x registry is per-runtime (one runtime per item). Multi-stack items (legacy 2.0 digest, custom registries) ship **all** stacks in one item; with `--runtime` / `config.runtime`, `add` keeps:
 
 | Runtime | Files kept (plus shared) |
 |---------|--------------------------|
@@ -89,10 +90,11 @@ Registry bricks often ship **all** stacks in one item (no per-item `runtime`). W
 | `solid` | `*.solid.tsx` |
 | `svelte` | `*.svelte` |
 | `vue` | `*.vue` |
-| `templ` | `*.templ`, `*_templ.go`, `*_gen.go` |
-| `latte` | `*.latte` |
-| `twig` | `*.twig` / `*.html.twig` |
-| `jinja2` | `*.j2` / `*.html.j2` / `*.jinja` / `*.jinja2` |
+| `webcomponent` | `*.wc.ts` |
+| `templ` (legacy) | `*.templ`, `*_templ.go`, `*_gen.go` |
+| `latte` (legacy) | `*.latte` |
+| `twig` (legacy) | `*.twig` / `*.html.twig` |
+| `jinja2` (legacy) | `*.j2` / `*.html.j2` / `*.jinja` / `*.jinja2` |
 
 **Single-runtime items are never sliced** (since 2.0.3): when the item itself declares `runtime` and it equals the requested runtime (per-runtime registries such as `https://registry.buildy.tw/solid`), every file of the item is written, whatever its extension (`*.tsx` for Solid, `lucide_icons.go` for templ, `lucide-icons.json` for Twig/Latte/Jinja2, …). The table above applies to multi-stack items (no item-level `runtime`).
 
@@ -197,7 +199,7 @@ ui8kit cache clear
 
 ## `reset`
 
-Remove local UI8Kit state (config, kit folders, generated registry artifacts). Destructive.
+Remove local UI8Kit state (config, installed kit files, generated registry artifacts). Destructive.
 
 ```bash
 ui8kit reset [options]

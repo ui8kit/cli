@@ -68,4 +68,4 @@ Header-based auth is not a built-in feature of this CLI.
 ## Pitfalls
 
 - Forgetting `--strict-cdn` while debugging can hide misconfigured internal URLs by succeeding against public CDNs.
-- Pin `registryVersion` in CI; floating `@latest` breaks reproducibility.
+- Pin `registryVersion` in CI; a floating range (`@3`) picks up new registry releases.

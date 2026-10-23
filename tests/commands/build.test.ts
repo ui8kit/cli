@@ -44,7 +44,7 @@ describe("build command", () => {
 
     const registryPath = path.join(fixture, "src", "registry.json")
     await writeJson(registryPath, {
-      $schema: "https://ui.buildy.tw/schema/registry.json",
+      $schema: "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/registry.json",
       items: [
         {
           name: "button",
@@ -128,7 +128,7 @@ describe("build command", () => {
 
     const registryPath = path.join(fixture, "src", "registry.json")
     await writeJson(registryPath, {
-      $schema: "https://ui.buildy.tw/schema/registry.json",
+      $schema: "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/registry.json",
       items: [
         {
           name: "index",

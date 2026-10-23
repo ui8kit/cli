@@ -28,13 +28,13 @@ Keep consumer configs and published registries aligned on the same major contrac
 
 | Field | Role |
 |-------|------|
-| `framework` | Project stack hint: `react` \| `svelte` \| `vue` \| `solid` \| `templ` \| `latte` \| `twig` \| `jinja2` \| `none` |
+| `framework` | Project stack hint: `react` \| `vue` \| `svelte` \| `solid` \| `webcomponent` \| `none` (legacy 2.0 digest: `templ` \| `latte` \| `twig` \| `jinja2`) |
 | `runtime` | Registry slice / file filter when digests publish multiple stacks (often equals framework for JS) |
 
 Examples:
 
 - Svelte app → `framework: "svelte"`, `runtime: "svelte"`
-- Go Templ site with kit on disk → `framework: "templ"`, `runtime: "templ"`
+- Go Templ site with kit on disk → `framework: "templ"`, `runtime: "templ"`, `registryVersion: "2.0.0"` (legacy digest)
 - Unknown / multi-kit host → `framework: "none"`
 
 ## Canonical folders
@@ -46,11 +46,12 @@ All installs are rooted at `config.dir` (default `src`). Logical folders:
 | `lib/` | `registry:lib` | Low-level helpers |
 | `utils/` | `registry:utils` | Shared helpers (`cn`, …) |
 | `components/` | `registry:component`, `registry:composite` | Composites |
-| `components/ui/` | `registry:ui` | Primitives / atoms |
+| `ui/` | `registry:ui` | Primitives (3.x targets `ui/<brick>/…`; legacy items use `components/ui/…`) |
 | `blocks/` | `registry:block` | Page sections |
 | `layouts/` | `registry:layout` | Shells / chrome |
 | `variants/` | `registry:variants` | Variant maps / tokens |
 | `widgets/` | `registry:widget` | UI + light behavior |
+| `.cursor/rules/` (app root, not under `dir`) | `registry:rules` | Agent rules, installed by `init` |
 
 ### Path remap
 
@@ -61,13 +62,12 @@ Logical names stay stable; physical folders can move via `paths`:
   "dir": "web/src",
   "paths": {
     "ui": "kit",
-    "utils": "kit/utils",
     "blocks": "sections"
   }
 }
 ```
 
-Install of `registry:ui` then lands under `web/src/kit/…` instead of `web/src/components/ui/…`.
+Install of `registry:ui` then lands under `web/src/kit/…` instead of `web/src/ui/…`. Keep `utils` at `{dir}/utils`: bricks import `../../utils`.
 
 ## Install path rules
 
@@ -80,8 +80,8 @@ For each file in a registry item:
 Example install:
 
 ```text
-target: components/ui/button/Button.svelte
-→ {dir}/components/ui/button/Button.svelte
+target: ui/button/button.svelte
+→ {dir}/ui/button/button.svelte
 ```
 
 ## Registry dependencies
@@ -103,7 +103,7 @@ When installing TS/JS sources, the CLI may rewrite `@/…` import specifiers:
 | `importStyle` | Behavior |
 |---------------|----------|
 | `alias` (default) | Remap using `config.aliases` |
-| `package` | Map component-group aliases to `@ui8kit/core` barrel |
+| `package` | **Deprecated** (warns): map component-group aliases to `@ui8kit/core` barrel |
 
 Non-JS assets (`.svelte`, `.vue`, `.templ`, JSON, CSS) are still written; rewrite applies to transformable extensions.
 

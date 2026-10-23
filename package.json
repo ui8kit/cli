@@ -1,7 +1,7 @@
 {
   "name": "ui8kit",
-  "version": "3.0.1",
-  "description": "CLI to install and maintain UI8Kit component/block registries (multi-runtime: React, Svelte, Vue, Solid, Templ, Twig, Latte, Jinja2; file-based)",
+  "version": "3.0.2",
+  "description": "CLI to install and maintain UI8Kit primitives registries (per-runtime: React, Vue, Svelte, Solid, Web Components; legacy 2.0 digest: Templ, Twig, Latte, Jinja2; file-based)",
   "type": "module",
   "bin": {
     "ui8kit": "./dist/index.js"
@@ -38,19 +38,21 @@
     "shadcn",
     "tailwind",
     "ui8kit",
-    "svelte",
     "react",
-    "solid",
     "vue",
-    "templ",
-    "twig",
-    "latte",
-    "jinja2",
+    "svelte",
+    "solid",
+    "webcomponent",
+    "web-components",
     "codegen",
-    "registry"
+    "registry",
+    "templ-legacy",
+    "twig-legacy",
+    "latte-legacy",
+    "jinja2-legacy"
   ],
   "author": {
-    "name": "ui8kit",
+    "name": "UI8Kit",
     "url": "https://github.com/ui8kit"
   },
   "license": "MIT",

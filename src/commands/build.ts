@@ -2,7 +2,7 @@ import path from "node:path"
 import { ensureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
 import { registrySchema, registryItemSchema } from "../registry/build-schema.js"
 import { resetCache } from "../registry/api.js"
-import { SCHEMA_CONFIG, isExternalDependency } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, getSchemaRef, isExternalDependency } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { handleError } from "../utils/errors.js"
 import { clearCache } from "../utils/cache.js"
@@ -54,7 +54,7 @@ export async function buildCommand(
 
     for (const item of registry.items) {
       spinner.text = `Building ${item.name}...`
-      item.$schema = "https://ui.buildy.tw/schema/registry-item.json"
+      item.$schema = getSchemaRef("registry-item")
 
       for (const file of item.files) {
         const filePath = path.resolve(buildOptions.cwd, file.path)
@@ -95,7 +95,7 @@ async function createIndexFile(
   outputDir: string,
 ) {
   const index = {
-    $schema: "https://ui.buildy.tw/schema/registry.json",
+    $schema: getSchemaRef("registry"),
     components: registry.items.map((item) => ({
       name: item.name,
       type: item.type,

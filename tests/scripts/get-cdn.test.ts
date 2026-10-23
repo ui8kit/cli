@@ -4,7 +4,8 @@ import {
   buildTargetUrls,
   extractCdnBaseUrls,
   normalizeRelativePath,
-  normalizeBaseUrl
+  normalizeBaseUrl,
+  pinVersion
 } from "../../scripts/get-cdn.js"
 
 describe("get-cdn utilities", () => {
@@ -26,11 +27,19 @@ describe("get-cdn utilities", () => {
     ])
   })
 
-  it("includes v2 default probe suffixes", () => {
+  it("includes 3.x per-runtime default probe suffixes", () => {
     const parsed = parseArgs([])
-    expect(parsed.suffixes).toContain("index.json")
-    expect(parsed.suffixes).toContain("lib/utils.json")
-    expect(parsed.suffixes).toContain("utils/cn.json")
+    expect(parsed.suffixes).toContain("react/index.json")
+    expect(parsed.suffixes).toContain("webcomponent/utils/utils.json")
+    expect(parsed.suffixes).toContain("vue/rules/rules.json")
+    expect(parsed.suffixes).toContain("svelte/components/ui/button.json")
+    expect(parsed.version).toBe("3")
+  })
+
+  it("limits probes to --runtime and pins @latest", () => {
+    const parsed = parseArgs(["--runtime", "solid", "--registry-version", "2.0.0"])
+    expect(parsed.suffixes.every((s: string) => s.startsWith("solid/"))).toBe(true)
+    expect(pinVersion("https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r", parsed.version)).toBe("https://cdn.jsdelivr.net/npm/@ui8kit/registry@2.0.0/r")
   })
 
   it("normalizes relative paths by stripping leading slash and r prefix", () => {

@@ -26,7 +26,7 @@ export class ConfigNotFoundError extends Ui8kitError {
   constructor(registry: string) {
     super(
       `ui8kit config not found for registry "${registry}".`,
-      `Run: npx ui8kit@latest init --registry ${registry}`
+      `Run: npx ui8kit@3 init --registry ${registry}`
     )
   }
 }

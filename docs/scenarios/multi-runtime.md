@@ -77,7 +77,7 @@ npx ui8kit add button --runtime vue
 | **File filter (default for multi-file bricks)** | `add --runtime svelte` keeps only `*.svelte` + shared assets from each item |
 | Item `runtime` field | Skip whole items whose `runtime` ≠ requested |
 | Separate CDN bases | `registryUrl` per stack |
-| npm version / dist-tag | `--registry-version 0.2.0-svelte` if URLs use `@latest` |
+| npm version / dist-tag | `--registry-version 3.0.0` (pin) or a dist-tag such as `canary` |
 
 Without `--runtime` / `config.runtime`, every file in the item is written (all stacks).
 

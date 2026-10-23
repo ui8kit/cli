@@ -4,6 +4,7 @@ import { Component } from "../registry/schema.js"
 import type { Config } from "../registry/schema.js"
 import {
   getCdnUrls,
+  getSchemaUrl,
   SCHEMA_CONFIG,
   type CdnResolutionOptions,
   type Framework,
@@ -107,6 +108,9 @@ export function buildInitConfig(options: InitConfigOptions): Config {
   const framework = asFramework(options.framework)
   const runtime = asRuntime(options.runtime, framework)
   const importStyle = resolveImportStyle(options.importStyle)
+  if (importStyle === "package") {
+    logger.warn('--import-style package (@ui8kit/core) is deprecated and will be removed; use "alias".')
+  }
   const globalCss = options.globalCss || (dir === "src" ? "src/index.css" : `${dir}/app.css`)
 
   if (!options.yes && options.aliasComponents?.trim()) {
@@ -114,7 +118,7 @@ export function buildInitConfig(options: InitConfigOptions): Config {
   }
 
   return {
-    $schema: `${SCHEMA_CONFIG.baseUrl}.json`,
+    $schema: getSchemaUrl(),
     contractVersion: SCHEMA_CONFIG.cliContractVersion,
     framework,
     runtime,
@@ -217,7 +221,7 @@ export async function initCommand(options: InitOptions) {
         message: "Import style for TS/TSX rewrites",
         choices: [
           { title: "Alias imports (recommended)", value: "alias" as ImportStyle },
-          { title: "Package imports (@ui8kit/core)", value: "package" as ImportStyle },
+          { title: "Package imports (@ui8kit/core, deprecated)", value: "package" as ImportStyle },
         ],
         initial: 0,
       },
@@ -389,13 +393,13 @@ async function writeComponentFiles(component: Component, config: Config): Promis
 
 /**
  * Substitute the two installer placeholders of a `registry:rules` item:
- *   `{kit}`   → primitives folder (item `meta.kitTarget`, default `components/ui`,
+ *   `{kit}`   → primitives folder (item `meta.kitTarget`, default `ui`,
  *               resolved like a `registry:ui` target, so `dir` / `paths.ui` apply)
  *   `{globs}` → item `meta.globs` (relative to `dir`), prefixed with `dir`
  */
 export function renderRulesContent(content: string, component: Component, config: Config): string {
   const dir = normalizeDir(config.dir || SCHEMA_CONFIG.defaultDir)
-  const kitTarget = typeof component.meta?.kitTarget === "string" ? component.meta.kitTarget : "components/ui"
+  const kitTarget = typeof component.meta?.kitTarget === "string" ? component.meta.kitTarget : "ui"
   // Resolve a file inside the kit folder (same mapping as installed primitives), then take its folder.
   const probe = `${kitTarget.replace(/\/+$/, "")}/x`
   const kit = path.posix.dirname(resolveFileInstallPath({ path: probe, target: probe, content: "" }, "registry:ui", config))

@@ -42,7 +42,7 @@ ui8kit list --json
 
 - Check `dir` and `paths` in `ui8kit.config.json`
 - Prefer `files[].target` in published items
-- Remember v2 **preserves nesting** (no basename flatten)
+- The CLI **preserves nesting** (no basename flatten)
 
 ## Tailwind missing classes
 

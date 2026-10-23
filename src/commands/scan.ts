@@ -1,7 +1,7 @@
 import path from "node:path"
 import { ensureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
 import { walkFiles, listFilesFlat } from "../utils/walk.js"
-import { SCHEMA_CONFIG, isExternalDependency, TYPE_TO_FOLDER } from "../utils/schema-config.js"
+import { SCHEMA_CONFIG, getSchemaRef, isExternalDependency, TYPE_TO_FOLDER } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { handleError } from "../utils/errors.js"
 import { Spinner } from "../utils/logger.js"
@@ -316,7 +316,7 @@ export async function scanCommand(
     })
 
     const registry = {
-      $schema: "https://ui.buildy.tw/schema/registry.json",
+      $schema: getSchemaRef("registry"),
       items: allComponents,
       version: "1.0.0",
       lastUpdated: new Date().toISOString(),

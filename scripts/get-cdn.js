@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * CDN diagnostics for ui8kit registry bases.
+ * CDN diagnostics for ui8kit registry bases (3.x per-runtime layout: r/<runtime>/…).
  * Reads cdnBaseUrls from schema-config (or --config) and probes sample paths.
  *
  *   node scripts/get-cdn.js
@@ -12,18 +12,28 @@ import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 
-/** Default probe paths under registry base (`…/r/…`) */
-const SUFFIXES = [
-  "index.json",
-  "components/variants/index.json",
-  "lib/utils.json",
-  "utils/cn.json",
-  "components/ui/button.json",
-]
+/** Runtimes published per-runtime in @ui8kit/registry 3.x (`r/<runtime>/…`) */
+export const RUNTIMES = ["react", "vue", "svelte", "solid", "webcomponent"]
+
+/** Default probe paths under `r/<runtime>/` */
+const RUNTIME_SUFFIXES = ["index.json", "utils/utils.json", "rules/rules.json", "components/ui/button.json"]
+
+/** `@latest` placeholder in cdnBaseUrls is rewritten to this (mirrors CLI: registry major = CLI major) */
+export const DEFAULT_REGISTRY_VERSION = "3"
+
+export function defaultSuffixes(runtimes = RUNTIMES) {
+  return runtimes.flatMap((rt) => RUNTIME_SUFFIXES.map((s) => `${rt}/${s}`))
+}
+
+export function pinVersion(url, version = DEFAULT_REGISTRY_VERSION) {
+  return url.replace("@latest", `@${version}`)
+}
 
 export function parseArgs(argv) {
   const configFiles = []
-  const suffixes = [...SUFFIXES]
+  const suffixes = []
+  const runtimes = []
+  let version = DEFAULT_REGISTRY_VERSION
   let jsonOutput = false
   const extraUrls = []
 
@@ -43,6 +53,16 @@ export function parseArgs(argv) {
       i += 1
       continue
     }
+    if ((arg === "--runtime" || arg === "-r") && argv[i + 1]) {
+      runtimes.push(argv[i + 1].trim())
+      i += 1
+      continue
+    }
+    if (arg === "--registry-version" && argv[i + 1]) {
+      version = argv[i + 1].trim()
+      i += 1
+      continue
+    }
     if ((arg === "--path" || arg === "-p") && argv[i + 1]) {
       suffixes.push(normalizeRelativePath(argv[i + 1]))
       i += 1
@@ -59,7 +79,8 @@ export function parseArgs(argv) {
 
   return {
     configFiles,
-    suffixes: [...new Set(suffixes)],
+    suffixes: [...new Set([...defaultSuffixes(runtimes.length ? runtimes : RUNTIMES), ...suffixes])],
+    version,
     extraUrls,
     jsonOutput,
   }
@@ -140,18 +161,20 @@ async function fetchAndReport(url) {
 
 function usage() {
   console.log(`Usage:
-  node scripts/get-cdn.js [--config path] [--path path] [--json] [--url baseUrl]
+  node scripts/get-cdn.js [--config path] [--runtime rt] [--registry-version v] [--path path] [--json] [--url baseUrl]
 
 Options:
   --config, -c   File with cdnBaseUrls (default: src/utils/schema-config.ts)
-  --path, -p     Extra path under /r/ to probe
+  --runtime, -r  Probe only this runtime (repeatable; default: ${RUNTIMES.join(", ")})
+  --registry-version  Replaces @latest in config bases (default: ${DEFAULT_REGISTRY_VERSION})
+  --path, -p     Extra path under /r/ to probe (e.g. react/components/ui/text.json)
   --url, -u      Extra registry base URL (…/r or host root)
   --json         Raw JSON output
 `)
 }
 
 async function main() {
-  const { configFiles, suffixes, jsonOutput, extraUrls } = parseArgs(process.argv.slice(2))
+  const { configFiles, suffixes, jsonOutput, extraUrls, version } = parseArgs(process.argv.slice(2))
 
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     usage()
@@ -161,7 +184,7 @@ async function main() {
   const bases = await readUrlsFromFiles(configFiles)
   const allBases = [
     ...new Set([
-      ...bases,
+      ...bases.map((b) => pinVersion(b, version)),
       ...extraUrls.filter((url) => url.startsWith("http://") || url.startsWith("https://")),
     ]),
   ]

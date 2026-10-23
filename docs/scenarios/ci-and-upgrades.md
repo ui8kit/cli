@@ -65,9 +65,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx ui8kit@latest info --cdn
+      - run: npx ui8kit@3 info --cdn
       - run: |
-          npx ui8kit@latest add button --dry-run \
+          npx ui8kit@3 add button --dry-run \
             --registry-url "${{ vars.UI8KIT_REGISTRY_URL }}" \
             --registry-version "${{ vars.UI8KIT_REGISTRY_VERSION }}" \
             --strict-cdn --no-cache

@@ -31,7 +31,7 @@ program
   .option("-r, --registry <type>", "Registry type", "ui")
   .option("--json", "Output raw JSON")
   .option("--registry-url <url>", "Override registry base URL")
-  .option("--registry-version <version>", "Pin @latest → @version in CDN URLs")
+  .option("--registry-version <version>", "Registry version/range/dist-tag (default: CLI major)")
   .option("--strict-cdn", "Do not fall back when --registry-url is set")
   .action((options) => listCommand(options))
 
@@ -42,7 +42,7 @@ program
   .option("-r, --registry <type>", "Registry type", "ui")
   .option("--json", "Output diff as JSON")
   .option("--registry-url <url>", "Override registry base URL")
-  .option("--registry-version <version>", "Pin registry version")
+  .option("--registry-version <version>", "Registry version/range/dist-tag (default: CLI major)")
   .option("--strict-cdn", "Do not fall back when --registry-url is set")
   .action((component, options) => diffCommand(component, options))
 
@@ -81,17 +81,17 @@ program
 
 program
   .command("init")
-  .description("Initialize universal kit folders + ui8kit.config.json")
+  .description("Create ui8kit.config.json and install utils + agent rules (.cursor/rules)")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option("-r, --registry <type>", "Registry type", "ui")
-  .option("--framework <name>", "react|svelte|vue|solid|webcomponent|templ|latte|twig|jinja2|none")
-  .option("--runtime <name>", "Default registry runtime slice")
+  .option("--framework <name>", "react|vue|svelte|solid|webcomponent|none (legacy 2.0 digest: templ|latte|twig|jinja2)")
+  .option("--runtime <name>", "Registry runtime (defaults to framework)")
   .option("--dir <path>", "Install root (src, web/src, internal, …)")
   .option("--skip-core", "Do not fetch utils/lib from registry on init")
   .option("--registry-url <url>", "Override registry base URL")
-  .option("--registry-version <version>", "Pin registry version")
+  .option("--registry-version <version>", "Registry version/range/dist-tag (default: CLI major)")
   .option("--strict-cdn", "Do not fall back when --registry-url is set")
-  .option("--import-style <alias|package>", "TS/TSX import rewrite style", "alias")
+  .option("--import-style <alias|package>", "TS/TSX import rewrite style (package is deprecated)", "alias")
   .action(initCommand)
 
 program
@@ -113,7 +113,7 @@ program
   .option("--dry-run", "Plan without writing")
   .option("--retry", "Retry CDN requests")
   .option("--registry-url <url>", "Override registry base URL")
-  .option("--registry-version <version>", "Pin registry version")
+  .option("--registry-version <version>", "Registry version/range/dist-tag (default: CLI major)")
   .option("--strict-cdn", "Do not fall back when --registry-url is set")
   .action(addCommand)
 

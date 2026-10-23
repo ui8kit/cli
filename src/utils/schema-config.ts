@@ -93,7 +93,8 @@ export const TYPE_TO_PATH_KEY: Partial<Record<ComponentType, PathKey>> = {
 
 export const SCHEMA_CONFIG = {
   schemaVersion: "http://json-schema.org/draft-07/schema#",
-  baseUrl: "https://ui.buildy.tw/schema",
+  /** JSON Schemas shipped by @ui8kit/registry (same major as the CLI). */
+  baseUrl: "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema",
   cliContractVersion: "2.0.0",
 
   supportedFrameworks: FRAMEWORKS,
@@ -172,17 +173,17 @@ export const SCHEMA_CONFIG = {
   fieldDescriptions: {
     schema: "JSON Schema URL",
     framework: "Project framework / stack hint",
-    runtime: "Default registry runtime slice (react|svelte|templ|…)",
+    runtime: "Registry runtime: react|vue|svelte|solid|webcomponent (legacy 2.0 digest: templ|latte|twig|jinja2)",
     typescript: "Whether the project uses TypeScript",
     globalCss: "Path to global styles entry (Tailwind)",
-    dir: "Install root for kit folders (src, web/src, internal, …)",
+    dir: "Install root for kit files (src, web/src, internal, …)",
     paths: "Optional remap of canonical folders under dir",
     aliases: "Path aliases for import rewrites",
     registry: "Default component registry name",
     componentsDir: "Deprecated: use dir + paths",
     libDir: "Deprecated: use dir + paths.lib",
     registryUrl: "Explicit registry CDN/base URL override",
-    registryVersion: "Pin @latest → @version in CDN URLs",
+    registryVersion: "Registry version, range or dist-tag (default: CLI major, e.g. 3)",
     cdnBaseUrls: "Full ordered list of registry base URLs (replaces defaults when set)",
     strictCdn: "When registryUrl is set, do not fall back to other CDNs",
     importStyle: "How TS/TSX imports are rewritten: alias or package",
@@ -337,7 +338,7 @@ export function getSchemaRef(schemaName: string): string {
 
 export function getSchemaUrl(schemaName?: string): string {
   if (schemaName) return getSchemaRef(schemaName)
-  return `${SCHEMA_CONFIG.baseUrl}.json`
+  return `${SCHEMA_CONFIG.baseUrl}/schema.json`
 }
 
 /** @deprecated use TYPE_TO_FOLDER + config.dir */

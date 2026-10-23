@@ -11,38 +11,6 @@ export interface ValidationResult {
 }
 
 /**
- * Check if utility registry is initialized (base requirement)
- */
-export async function isUtilityRegistryInitialized(): Promise<boolean> {
-  // Deprecated in core/form model. Always allow operations.
-  return true
-}
-
-/**
- * Check if a specific registry can be used (requires utility as base)
- */
-export async function canUseRegistry(registryType: string): Promise<ValidationResult> {
-  // In the simplified core/form model, all registries are usable without prerequisites.
-  return { isValid: true }
-}
-
-/**
- * Get list of available components in utility registry from all categories
- */
-export async function getUtilityComponents(): Promise<string[]> {
-  // Deprecated in core/form model. No prerequisite components required.
-  return []
-}
-
-/**
- * Get detailed component information by category
- */
-export async function getUtilityComponentsByCategory(): Promise<Record<string, string[]>> {
-  // Deprecated in core/form model. No categorized utility prerequisites.
-  return {}
-}
-
-/**
  * Validate if components can be installed in non-utility registry
  */
 export async function validateComponentInstallation(
@@ -85,7 +53,7 @@ export async function validateComponentInstallation(
 
     return {
       isValid: false,
-      message: `ui8kit is not initialized. Run: npx ui8kit@latest init --registry ${registryType}`
+      message: `ui8kit is not initialized. Run: npx ui8kit@3 init --registry ${registryType}`
     }
   }
 
@@ -105,11 +73,4 @@ export function handleValidationError(result: ValidationResult): never {
   }
 
   process.exit(1)
-}
-
-/**
- * Show utility components summary
- */
-export async function showUtilityComponentsSummary(): Promise<void> {
-  // Deprecated in core/form model. No summary to show.
 }

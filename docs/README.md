@@ -1,10 +1,10 @@
 # ui8kit CLI documentation
 
-Contract **2.0.0** · Node.js `>=20`
+ui8kit **3.x** · registry `@ui8kit/registry@3` (per-runtime `r/<runtime>/`) · config contract `2.0.0` · Node.js `>=20`
 
 `ui8kit` is a **file-based registry CLI** (shadcn-style): it fetches registry items from a CDN (or local server) and **writes source files into your app**. It does not treat `node_modules` as the kit source of truth, so Tailwind and bundlers see real classes and files.
 
-This docs set covers concepts, configuration, every command, the registry JSON contract, CDN/cache behavior, publishing, end-to-end scenarios, troubleshooting, and migration from v1.
+This docs set covers concepts, configuration, every command, the registry JSON contract, CDN/cache behavior, publishing, end-to-end scenarios, troubleshooting, and migration notes.
 
 ## Guides
 
@@ -18,7 +18,8 @@ This docs set covers concepts, configuration, every command, the registry JSON c
 | [CDN and cache](./cdn-and-cache.md) | URL resolution, pinning, offline cache |
 | [Publishing a registry](./publishing.md) | `scan` → `build` → host `/r` |
 | [Troubleshooting](./troubleshooting.md) | Common failures and fixes |
-| [Migration v1 → v2](./migration-v2.md) | Breaking changes checklist |
+| [Migration 2.x → 3.x](./migration-v3.md) | Per-runtime registry, `ui/` layout, agent rules |
+| [Migration v1 → v2](./migration-v2.md) | Historical (v1 → v2) |
 
 ## Scenarios
 
@@ -26,7 +27,7 @@ This docs set covers concepts, configuration, every command, the registry JSON c
 |----------|----------|
 | [Consumer app (React)](./scenarios/consumer-react.md) | App teams installing primitives |
 | [Svelte / Solid / Vue](./scenarios/multi-runtime.md) | Multi-runtime digests |
-| [Go Templ / PHP](./scenarios/non-js.md) | Kit on disk without a JS framework |
+| [Go Templ / PHP (legacy 2.0 digest)](./scenarios/non-js.md) | Kit on disk without a JS framework |
 | [Private / strict CDN](./scenarios/private-cdn.md) | Locked registry URL + version pin |
 | [Maintain & publish registry](./scenarios/maintain-registry.md) | Authors assembling `packages/registry/r` |
 | [CI dry-run & upgrades](./scenarios/ci-and-upgrades.md) | Automation, `diff`, force updates |
@@ -35,14 +36,14 @@ This docs set covers concepts, configuration, every command, the registry JSON c
 
 ```text
                     ┌─────────────────────┐
-                    │  Registry CDN `/r`  │
+                    │ CDN r/<runtime>/    │
                     │  index.json + items │
                     └──────────┬──────────┘
                                │  fetch
                                ▼
 ┌──────────────┐    ui8kit add     ┌────────────────────────┐
 │ App project  │ ◄──────────────── │ files under {dir}/…    │
-│ ui8kit.config│                   │ components/ui, utils…  │
+│ ui8kit.config│                   │ ui/<brick>, utils/     │
 └──────────────┘                   └────────────────────────┘
 ```
 

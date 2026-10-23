@@ -6,7 +6,7 @@ Public contract for artifacts served under a registry base URL ending in `/r`.
 
 ```json
 {
-  "$schema": "https://ui.buildy.tw/schema/registry.json",
+  "$schema": "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/registry.json",
   "components": [
     {
       "name": "button",
@@ -45,7 +45,7 @@ Example item:
 
 ```json
 {
-  "$schema": "https://ui.buildy.tw/schema/registry-item.json",
+  "$schema": "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/registry-item.json",
   "name": "button",
   "type": "registry:ui",
   "title": "Button",
@@ -96,7 +96,7 @@ Produced by `scan`. Files usually omit `content` until `build` embeds them:
 
 ```json
 {
-  "$schema": "https://ui.buildy.tw/schema/registry.json",
+  "$schema": "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/registry.json",
   "items": [
     {
       "name": "button",
@@ -133,7 +133,7 @@ https://cdn.example.com/ui8kit@0.1.0-react/r/...
 
 Consumers select with `--runtime` and/or `--registry-version`. Item-level `runtime` skips the whole package when it differs from the requested runtime; when it is equal, every file of the item is installed (no file-level slicing, since 2.0.3). The file-level filter applies only when the field is omitted and multiple stacks share one JSON.
 
-Runtimes (`runtime` field and `--runtime`): `react`, `svelte`, `vue`, `solid`, `templ`, `latte`, `twig`, `jinja2` (since 2.0.3). For the server-template runtimes (`templ`, `latte`, `twig`, `jinja2`) file `target`s are relative to the template root (Go module root, Twig/Latte/Jinja2 loader root), e.g. `ui/button/button.html.twig`, `blocks/hero-split.latte`; npm `dependencies` stay empty (toolchain requirements are not npm packages).
+Runtimes (`runtime` field and `--runtime`): `react`, `vue`, `svelte`, `solid`, `webcomponent`; legacy (2.0 digest): `templ`, `latte`, `twig`, `jinja2`. For the server-template runtimes (`templ`, `latte`, `twig`, `jinja2`) file `target`s are relative to the template root (Go module root, Twig/Latte/Jinja2 loader root), e.g. `ui/button/button.html.twig`, `blocks/hero-split.latte`; npm `dependencies` stay empty (toolchain requirements are not npm packages).
 
 ## Validation
 

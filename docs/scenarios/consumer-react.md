@@ -24,7 +24,7 @@ ui8kit.config.json
 src/lib/
 src/utils/
 src/components/
-src/components/ui/
+src/ui/
 src/blocks/
 src/layouts/
 src/variants/

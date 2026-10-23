@@ -8,7 +8,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 
 ```json
 {
-  "$schema": "https://ui.buildy.tw/schema.json",
+  "$schema": "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/schema.json",
   "contractVersion": "2.0.0",
   "framework": "svelte",
   "runtime": "svelte",
@@ -46,7 +46,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `contractVersion` | string | `"2.0.0"` | Config/registry contract major |
-| `framework` | enum | `"none"` | `react` \| `svelte` \| `vue` \| `solid` \| `templ` \| `latte` \| `twig` \| `jinja2` \| `none` |
+| `framework` | enum | `"none"` | `react` \| `vue` \| `svelte` \| `solid` \| `webcomponent` \| `none`; legacy 2.0 digest: `templ` \| `latte` \| `twig` \| `jinja2` |
 | `runtime` | enum | — | Default digest slice for installs |
 | `typescript` | boolean | `true` | Project uses TypeScript (metadata) |
 | `globalCss` | string | `"src/index.css"` | Global / Tailwind entry path |
@@ -75,7 +75,7 @@ All optional; values are relative to `dir` (no leading `./` required):
 
 ### `paths` precedence with registry `target`
 
-Registry files usually carry a `target` (e.g. `components/ui/button/Button.svelte`, or registry-specific such as `primitives/button/button.svelte`). Where a file lands is decided in this order:
+Registry files usually carry a `target` (e.g. `ui/button/button.svelte` in 3.x, `components/ui/button/Button.svelte` in legacy items, or registry-specific such as `primitives/button/button.svelte`). Where a file lands is decided in this order:
 
 1. **Explicit CLI flag**: `add --path ui=kit` (repeatable; keys as above).
 2. **`config.paths`, mapped by target prefix**:
@@ -85,7 +85,7 @@ Registry files usually carry a `target` (e.g. `components/ui/button/Button.svelt
 
 Everything is relative to `dir`; keys you did not configure are not remapped. Without `paths` and without `--path` behaviour is exactly as in 2.0.0/2.0.1. Files without `target` keep using `paths` as before.
 
-Example — `{ "paths": { "ui": "kit" } }`: `components/ui/button/Button.svelte` → `src/kit/button/Button.svelte`; `primitives/button/button.svelte` → `src/kit/button/button.svelte`; `blocks/hero.svelte` stays in `src/blocks/`.
+Example — `{ "paths": { "ui": "kit" } }`: `ui/button/button.svelte` / `components/ui/button/Button.svelte` → `src/kit/button/…`; `primitives/button/button.svelte` → `src/kit/button/button.svelte`; `blocks/hero.svelte` stays in `src/blocks/`.
 
 Caveat: the CLI does not rewrite relative imports. Remap to folders at the same depth, and keep `utils` next to the remapped folders (bricks import `../../utils`, `../presets/defaults`, `../primitives/…`).
 
@@ -97,7 +97,7 @@ Caveat: the CLI does not rewrite relative imports. Remap to folders at the same 
   "@/lib": "./src/lib",
   "@/utils": "./src/utils",
   "@/components": "./src/components",
-  "@/ui": "./src/components/ui",
+  "@/ui": "./src/ui",
   "@/blocks": "./src/blocks",
   "@/layouts": "./src/layouts",
   "@/variants": "./src/variants",
@@ -142,6 +142,7 @@ Use flags for one-off CI pins; put stable values in config for daily work.
   "contractVersion": "2.0.0",
   "framework": "templ",
   "runtime": "templ",
+  "registryVersion": "2.0.0",
   "dir": "internal",
   "typescript": false,
   "strictCdn": true,

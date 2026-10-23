@@ -230,7 +230,7 @@ describe("CLI integration commands", () => {
 
     expect(result.status).toBe(0)
     expect(output).toContain("Usage:")
-    expect(output).toContain("Initialize universal kit folders")
+    expect(output).toContain("Create ui8kit.config.json")
     expect(output).toContain("--framework")
     expect(output).toContain("--dir")
   })

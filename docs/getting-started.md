@@ -44,7 +44,7 @@ npx ui8kit init --yes --framework react --dir src
 This creates:
 
 - `ui8kit.config.json` — project contract
-- Canonical folders under `src/` (`lib`, `utils`, `components/ui`, `blocks`, …)
+- `src/utils/` (registry utils) and `.cursor/rules/ui8kit-primitives.mdc` (agent rules); only folders of written files are created
 - Optionally pulls **core** registry items (`registry:lib` / `utils` / `variants`) when the CDN is reachable
 
 Skip core fetch (offline / custom later):

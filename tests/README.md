@@ -160,7 +160,7 @@ Validates real CLI entry points as a user would call them from the shell.
   - A quick unit test for pure logic/handlers.
   - A small integration test in `tests/commands/cli.test.ts` for argument parsing/help path.
 
-## Registry gap tests (2.0.2)
+## Registry gap tests (paths, runtime filter, typed deps)
 
 Fixture: `tests/fixtures/build-fixture-registry.mjs` generates a synthetic static registry (svelte + react) in a temp dir; `tests/helpers/static-server.mjs` serves it on 127.0.0.1. No private/real registry content.
 

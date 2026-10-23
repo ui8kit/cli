@@ -1,5 +1,7 @@
 # Scenario: Go Templ / PHP (non-JS apps)
 
+> **Legacy.** templ / latte / twig / jinja2 are not in the 3.x per-runtime registry. They exist only in the frozen `@ui8kit/registry@2.0.0` digest: add `--registry-version 2.0.0` (or `"registryVersion": "2.0.0"`).
+
 Use the CLI to drop kit files onto disk for Tailwind content scanning, Templ/Latte/Twig includes, or shared CSS — even when the app is not a Node SPA.
 
 ## Goals
@@ -14,7 +16,7 @@ Use the CLI to drop kit files onto disk for Tailwind content scanning, Templ/Lat
 cd my-go-site
 npx ui8kit init --yes \
   --framework templ \
-  --runtime templ \
+  --runtime templ --registry-version 2.0.0 \
   --dir internal \
   --skip-core \
   --registry-url https://cdn.example.com/ui8kit/r \
@@ -23,7 +25,7 @@ npx ui8kit init --yes \
 
 ```bash
 npx ui8kit add button card \
-  --runtime templ \
+  --runtime templ --registry-version 2.0.0 \
   --registry-url https://cdn.example.com/ui8kit/r \
   --strict-cdn
 ```
@@ -43,10 +45,10 @@ Point Tailwind (whatever builds your CSS) at `internal/**`.
 ## Latte / Twig
 
 ```bash
-npx ui8kit init --yes --framework latte --dir templates --skip-core \
+npx ui8kit@3 init --yes --framework latte --dir templates --skip-core --registry-version 2.0.0 \
   --registry-url https://cdn.example.com/ui8kit/r --strict-cdn
 
-npx ui8kit add hero --runtime latte \
+npx ui8kit@3 add hero --runtime latte --registry-version 2.0.0 \
   --registry-url https://cdn.example.com/ui8kit/r --strict-cdn
 ```
 
@@ -57,6 +59,7 @@ npx ui8kit add hero --runtime latte \
   "contractVersion": "2.0.0",
   "framework": "templ",
   "runtime": "templ",
+  "registryVersion": "2.0.0",
   "typescript": false,
   "dir": "internal",
   "registryUrl": "https://cdn.example.com/ui8kit/r",

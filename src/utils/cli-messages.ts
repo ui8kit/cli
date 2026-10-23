@@ -4,8 +4,8 @@ export const CLI_MESSAGES = {
   errors: {
     noComponentsSpecified: "Please specify at least one component to add.",
     notInitialized: "ui8kit is not initialized in this project. Run: npx ui8kit init",
-    notViteProject: "Vite was not detected (optional for v2 — init no longer requires it).",
-    reactNotInstalled: "React was not detected (optional for v2 — use --framework).",
+    notViteProject: "Vite was not detected (optional; init does not require it).",
+    reactNotInstalled: "React was not detected (optional; use --framework).",
     buildFailed: "Build failed:",
     scanFailed: "Scan failed:",
     registryTempUnavailable: "registry temporarily unavailable",
@@ -42,7 +42,7 @@ export const CLI_MESSAGES = {
 
   // Info messages
   info: {
-    tryListComponents: (registryType: string) => `Run "npx ui8kit@latest add --all --registry ${registryType}" to list available components`,
+    tryListComponents: (registryType: string) => `Run "npx ui8kit@3 list --registry ${registryType}" to list available components`,
     initializing: (registryName: string) => `Initializing UI8Kit in your project (${registryName} registry)...`,
     installing: (registryName: string) => `Installing from ${registryName} registry...`,
     installingAll: (registryName: string) => `Installing all available components from ${registryName} registry...`,
@@ -80,25 +80,24 @@ export const CLI_MESSAGES = {
   // Examples and help text
   examples: {
     add: [
-      "Example: npx ui8kit@latest add button input",
-      "Example: npx ui8kit@latest add button --registry ui",
-      "Example: npx ui8kit@latest add all  # Install all components",
-      'Example: npx ui8kit@latest add --all --registry ui  # Install all ui components',
-      "Example: npx ui8kit@latest add --retry  # Enable retry for unreliable connections",
-      'Example: npx ui8kit@latest add "https://example.com/component.json"'
+      "Example: npx ui8kit@3 add button input",
+      "Example: npx ui8kit@3 add button",
+      "Example: npx ui8kit@3 add all  # Install all components",
+            "Example: npx ui8kit@3 add --retry  # Enable retry for unreliable connections",
+      'Example: npx ui8kit@3 add "https://example.com/component.json"'
     ],
     init: [
-      `npx ui8kit@latest add button --registry ui - Add a button component`,
-      `npx ui8kit@latest add button input select --registry ui - Add multiple components`,
-      `npx ui8kit@latest add --all --registry ui - Add all components`,
-      `npx ui8kit@latest add "https://example.com/component.json" - Add from external URL`
+      `npx ui8kit@3 add button - Add a button component`,
+      `npx ui8kit@3 add button input select - Add multiple components`,
+      `npx ui8kit@3 add --all - Add all components`,
+      `npx ui8kit@3 add "https://example.com/component.json" - Add from external URL`
     ],
     troubleshooting: [
       "Check your internet connection",
-      "Use --retry flag: npx ui8kit@latest add --all --retry",
+      "Use --retry flag: npx ui8kit@3 add --all --retry",
       "Use VPN if available",
-      "Install from URL: npx ui8kit@latest add 'https://...'",
-      "Check https://ui.buildy.tw for manual download"
+      "Install from URL: npx ui8kit@3 add 'https://...'",
+      "Browse items: https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/<runtime>/index.json"
     ]
   },
 

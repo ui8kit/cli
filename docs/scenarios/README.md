@@ -1,6 +1,6 @@
 # Scenarios
 
-End-to-end playbooks. Each assumes Node `>=20` and `npx ui8kit@latest` (or a local `ui8kit` bin).
+End-to-end playbooks. Each assumes Node `>=20` and `npx ui8kit@3` (or a local `ui8kit` bin).
 
 | Scenario | File |
 |----------|------|

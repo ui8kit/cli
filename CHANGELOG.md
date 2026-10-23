@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-10-23
+
+### Changed
+- Config `$schema` and generated registry `$schema` point at `https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/` (`schema.json`, `registry.json`, `registry-item.json`) instead of `ui.buildy.tw`.
+- `--help`, messages and schema descriptions describe 3.x: `npx ui8kit@3`, per-runtime registry, legacy templ/latte/twig/jinja2 via `--registry-version 2.0.0`; no manual-download hint.
+- `registry:rules` `{kit}` default (`meta.kitTarget` missing) is `ui`.
+- `get-cdn` script probes the 3.x per-runtime paths (`--runtime`, `--registry-version`).
+- README, AGENTS.md and docs rewritten for 3.x; new `docs/migration-v3.md`.
+- package metadata: author UI8Kit, webcomponent keyword, legacy stacks marked.
+- CI: `main` only; added a Windows job (Node 22).
+
+### Deprecated
+- `--import-style package` (`@ui8kit/core` imports): still works, prints a warning.
+
+### Removed
+- Unused registry-validator helpers (`isUtilityRegistryInitialized`, `canUseRegistry`, `getUtilityComponents*`, `showUtilityComponentsSummary`).
+
 ## [3.0.1] - 2026-10-23
 
 ### Changed
