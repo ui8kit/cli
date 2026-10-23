@@ -38,6 +38,9 @@ Update `CHANGELOG.md`, README / `docs/` when behavior changes. CI runs Linux (No
 
 ## Facts to keep straight
 
+- Primitive names are never hard-coded in the CLI: `add --all` installs whatever the registry index lists (registry 3.2.0: 19 primitives — box, text, button, link, label, form, input, textarea, select, checkbox, radio, switch, image, icon, dialog, disclosure, meter, progress, separator; `slot` React-only).
+- `init` aliases come from `DEFAULT_INSTALL_FOLDERS` (`@/ui` → `./src/ui`, where `add` writes); covered by `tests/utils/release-3-2-1.test.ts`.
+
 - Registry `>= 3` is per-runtime: `r/{react,vue,svelte,solid,webcomponent,templ,latte,twig,jinja2}/`. Default version = CLI major (`@3`), not `@latest`.
 - Bricks install to `{dir}/ui/<brick>/`; utils to `{dir}/utils` (bricks import `../../utils`).
 - `registry:rules` is installed by `init` only, to `.cursor/rules/ui8kit-primitives.mdc` (`{kit}`, `{globs}` substituted).
