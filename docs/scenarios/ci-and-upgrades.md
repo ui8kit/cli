@@ -8,6 +8,17 @@ Automate registry hygiene without surprising file writes.
 - Preview installs in PRs
 - Controlled upgrades with `--force`
 
+## Lock + `check` (recommended)
+
+`init` and `add` write `ui8kit.lock.json`. **Commit it**, then run the offline check in CI:
+
+```bash
+npx ui8kit@3 check          # exit 1 on missing / modified files, mixed versions, rules drift
+npx ui8kit@3 check --json > ui8kit-check.json
+```
+
+Existing project without a lock: `npx ui8kit@3 check --adopt` once, review the `not-adopted` warnings, commit the lock.
+
 ## Dry-run install (PR check)
 
 ```bash
@@ -65,6 +76,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npx ui8kit@3 check
       - run: npx ui8kit@3 info --cdn
       - run: |
           npx ui8kit@3 add button --dry-run \

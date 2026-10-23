@@ -3,6 +3,28 @@ import { SCHEMA_CONFIG, TYPE_TO_FOLDER, getCdnUrls, type RegistryType, type CdnR
 import { logger } from "../utils/logger.js"
 import { createHash } from "crypto"
 import { getCachedJson, setCachedJson } from "../utils/cache.js"
+import { registryBaseFromUrl } from "../utils/dependency-resolver.js"
+
+/** Where an item was fetched from (for `ui8kit.lock.json`). */
+export interface ComponentSource {
+  /** Registry base URL (`…/r/react`). */
+  base: string
+  /** `version` of that registry's index.json, when it was read. */
+  indexVersion?: string
+}
+
+const SOURCE_FIELD = "__ui8kitSource"
+const componentSources = new WeakMap<object, ComponentSource>()
+
+/** Provenance of a component returned by `getComponent` / `getAllComponents` (undefined if unknown). */
+export function getComponentSource(component: object): ComponentSource | undefined {
+  return componentSources.get(component)
+}
+
+function withSource(component: Component, source: ComponentSource | undefined): Component {
+  if (source?.base) componentSources.set(component, source)
+  return component
+}
 
 const REGISTRY_INDEX_CACHE_TTL_MS = 3_600_000
 
@@ -188,7 +210,7 @@ async function getComponentByType(
   )
   if (cachedComponent) {
     try {
-      return componentSchema.parse(cachedComponent)
+      return withSource(componentSchema.parse(cachedComponent), cachedComponent[SOURCE_FIELD])
     } catch (error) {
       logger.debug(`Invalid cached component for ${name}, refetching`)
     }
@@ -237,8 +259,12 @@ async function getComponentByType(
 
     logger.debug(`Loading ${name} from /${folder}/ (type: ${itemType})`)
     const data = await fetchFromRegistryPath(`${folder}/${name}.json`, registryType, options)
-    await setCachedJson(cacheKey, data, { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS })
-    return componentSchema.parse(data)
+    const base = getRegistryCache(scope).workingCDN
+    const source: ComponentSource | undefined = base
+      ? { base, ...(typeof index?.version === "string" ? { indexVersion: index.version } : {}) }
+      : undefined
+    await setCachedJson(cacheKey, source ? { ...data, [SOURCE_FIELD]: source } : data, { ttlMs: REGISTRY_INDEX_CACHE_TTL_MS })
+    return withSource(componentSchema.parse(data), source)
   } catch (error) {
     logger.debug(`Failed to get component by type: ${(error as Error).message}`)
     return null
@@ -268,7 +294,7 @@ async function fetchFromUrl(url: string, options: RegistryFetchOptions = {}): Pr
   logger.debug(`Fetching component from: ${url}`)
 
   const data = await fetchJsonWithRetry(url, maxRetries, timeoutMs)
-  return componentSchema.parse(data)
+  return withSource(componentSchema.parse(data), { base: registryBaseFromUrl(url) })
 }
 
 export async function getAllComponents(

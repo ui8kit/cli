@@ -75,12 +75,22 @@ CDN order: `--registry-url` / `registryUrl` → `cdnBaseUrls` → built-in unpkg
 
 `--import-style package` (`@ui8kit/core` imports) is **deprecated**: it still works but prints a warning.
 
+## Lock and `check`
+
+`init` and `add` write **`ui8kit.lock.json`** (source registry, exact version, sha256 per installed file). Commit it and run in CI:
+
+```bash
+npx ui8kit@3 check            # offline; exit 1 on missing/modified files, mixed versions, rules drift
+npx ui8kit@3 check --adopt    # existing install without a lock: adopt files that match the registry
+```
+
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `init` | config + utils + agent rules |
 | `add <names…>` / `add --all` | install items (`--runtime`, `--dry-run`, `--force`, `--path key=dir`) |
+| `check [--json] [--adopt]` | verify files against `ui8kit.lock.json` |
 | `list` / `diff` | browse registry / compare local files (read registry settings from config) |
 | `info [--cdn]` | environment and resolved CDN order |
 | `scan` / `build` | author a registry: `src/registry.json` → `r/` |

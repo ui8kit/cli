@@ -20,14 +20,15 @@ import { logger, Spinner } from "../utils/logger.js"
 import { installDependencies } from "../utils/package-manager.js"
 import {
   assertInsideRoot,
-  assertSafeRegistryPath,
   defaultAliasesForDir,
   normalizeDir,
-  resolveFileInstallPath,
-  toPosix,
 } from "../utils/paths.js"
 import { detectFrameworkHint, findConfig, saveConfig, hasPackageJson } from "../utils/project.js"
 import { ensureDir as fsEnsureDir, writeFile, writeJson } from "../utils/fs.js"
+import { planItemFiles, renderRulesContent } from "../utils/install-plan.js"
+import { exactVersion, updateLock, type LockEntryInput } from "../utils/lock.js"
+
+export { renderRulesContent }
 
 export interface InitOptions {
   yes?: boolean
@@ -276,12 +277,14 @@ export async function initCommand(options: InitOptions) {
 
 interface RegistryIndex {
   components: Array<{ name: string; type: string }>
+  version?: string
 }
 
 interface CoreComponentDescriptor {
   name: string
   type: string
   component: Component
+  base: string
 }
 
 async function installCoreFiles(
@@ -325,20 +328,32 @@ async function installCoreFiles(
 
   for (const item of coreRefs) {
     spinner.text = `Fetching ${item.name}...`
-    const component = await fetchCoreComponent(item.name, item.type, cdnUrls)
-    if (!component) continue
-    loaded.push({ name: item.name, type: item.type, component })
+    const found = await fetchCoreComponent(item.name, item.type, cdnUrls)
+    if (!found) continue
+    const { component, base } = found
+    loaded.push({ name: item.name, type: item.type, component, base })
     for (const d of component.dependencies ?? []) deps.add(d)
   }
 
   const written: string[] = []
+  const lockEntries: LockEntryInput[] = []
   for (const descriptor of loaded) {
     spinner.text = `Installing ${descriptor.name}...`
-    written.push(
-      ...(descriptor.type === "registry:rules"
-        ? await writeRulesFiles(descriptor.component, config)
-        : await writeComponentFiles(descriptor.component, config)),
-    )
+    const files = await writePlannedFiles(descriptor.component, config)
+    written.push(...files.map((f) => f.rel))
+    lockEntries.push({
+      name: descriptor.component.name,
+      type: descriptor.component.type,
+      source: descriptor.base,
+      version: exactVersion(descriptor.component.digest, registryIndex.version),
+      runtime: descriptor.component.runtime ?? config.runtime,
+      files,
+    })
+  }
+  try {
+    await updateLock(lockEntries)
+  } catch (error) {
+    logger.warn(`Could not write ui8kit.lock.json: ${(error as Error).message}`)
   }
 
   if (deps.size > 0) {
@@ -358,7 +373,7 @@ async function fetchCoreComponent(
   name: string,
   type: string,
   cdnUrls: string[],
-): Promise<Component | null> {
+): Promise<{ component: Component; base: string } | null> {
   const folders =
     type === "registry:rules"
       ? ["rules"]
@@ -373,51 +388,19 @@ async function fetchCoreComponent(
   for (const baseUrl of cdnUrls) {
     for (const folder of folders) {
       const component = await fetchJsonFromRegistry<Component>(`${baseUrl}/${folder}/${name}.json`)
-      if (component?.files?.length) return component
+      if (component?.files?.length) return { component, base: baseUrl }
     }
   }
   return null
 }
 
-async function writeComponentFiles(component: Component, config: Config): Promise<string[]> {
-  const written: string[] = []
-  for (const file of component.files) {
-    const rel = resolveFileInstallPath(file, component.type, config)
-    const targetPath = path.join(process.cwd(), rel)
-    await fsEnsureDir(path.dirname(targetPath))
-    await writeFile(targetPath, file.content || "", "utf-8")
-    written.push(rel)
-  }
-  return written
-}
-
-/**
- * Substitute the two installer placeholders of a `registry:rules` item:
- *   `{kit}`   → primitives folder (item `meta.kitTarget`, default `ui`,
- *               resolved like a `registry:ui` target, so `dir` / `paths.ui` apply)
- *   `{globs}` → item `meta.globs` (relative to `dir`), prefixed with `dir`
- */
-export function renderRulesContent(content: string, component: Component, config: Config): string {
-  const dir = normalizeDir(config.dir || SCHEMA_CONFIG.defaultDir)
-  const kitTarget = typeof component.meta?.kitTarget === "string" ? component.meta.kitTarget : "ui"
-  // Resolve a file inside the kit folder (same mapping as installed primitives), then take its folder.
-  const probe = `${kitTarget.replace(/\/+$/, "")}/x`
-  const kit = path.posix.dirname(resolveFileInstallPath({ path: probe, target: probe, content: "" }, "registry:ui", config))
-  const globList: string[] = Array.isArray(component.meta?.globs) ? component.meta!.globs : ["**/*"]
-  const globs = globList.map((g) => path.posix.join(dir, g)).join(",")
-  return content.replace(/\{kit\}/g, kit).replace(/\{globs\}/g, globs)
-}
-
-/** Rules items target the app root (e.g. `.cursor/rules/x.mdc`), not `dir`. */
-async function writeRulesFiles(component: Component, config: Config): Promise<string[]> {
-  const written: string[] = []
-  for (const file of component.files) {
-    const rel = toPosix(file.target?.trim() || file.path)
-    assertSafeRegistryPath(rel)
+/** Write an item's planned files (rules → app root with placeholders; others → `dir`). */
+async function writePlannedFiles(component: Component, config: Config): Promise<Array<{ rel: string; content: string }>> {
+  const planned = planItemFiles(component, config, config.runtime)
+  for (const { rel, content } of planned) {
     const targetPath = assertInsideRoot(process.cwd(), rel)
     await fsEnsureDir(path.dirname(targetPath))
-    await writeFile(targetPath, renderRulesContent(file.content || "", component, config), "utf-8")
-    written.push(rel)
+    await writeFile(targetPath, content, "utf-8")
   }
-  return written
+  return planned.map(({ rel, content }) => ({ rel, content }))
 }

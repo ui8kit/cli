@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-10-23
+
+### Added
+- `ui8kit.lock.json`, written by `init` (utils, rules) and `add`: `lockVersion` 1, CLI version, items keyed `base|name` with type, source registry base, exact version (item `digest`, else index `version`; never a range), runtime and `files` (posix path → sha256 of the written content, CRLF normalized). Merged on repeated runs; sorted, deterministic output.
+- `ui8kit check`: offline verification — missing files, modified files (hash mismatch; may also come from changed `aliases` / `importStyle` / `paths`), mixed primitive versions from one source, agent rules version vs primitives. `--json`; exit code 1 on errors.
+- `ui8kit check --adopt`: creates/extends the lock for an existing install by fetching registry items and hashing the expected content; only matching files are adopted, mismatches are reported.
+
+### Changed
+- One shared install plan (runtime filter → install path → import transforms / rules substitution) for `init`, `add` and `check`. `init` now applies the same import transforms to utils as `add` (normalizes trailing blank lines) and checks every write stays inside the project.
+
 ## [3.0.2] - 2026-10-23
 
 ### Changed

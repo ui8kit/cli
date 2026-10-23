@@ -11,6 +11,7 @@ import { registryCleanCommand } from "./commands/registry.js"
 import { resetCommand } from "./commands/reset.js"
 import { logger } from "./utils/logger.js"
 import { getCliVersion } from "./utils/cli-version.js"
+import { checkCommand } from "./commands/check.js"
 import { resolve } from "node:path"
 
 const program = new Command()
@@ -116,6 +117,19 @@ program
   .option("--registry-version <version>", "Registry version/range/dist-tag (default: CLI major)")
   .option("--strict-cdn", "Do not fall back when --registry-url is set")
   .action(addCommand)
+
+program
+  .command("check")
+  .description("Verify installed files against ui8kit.lock.json (offline): missing, modified, mixed versions")
+  .option("--json", "Output the report as JSON")
+  .option("--adopt", "Create/extend the lock from an existing install (fetches the registry; adopts only matching files)")
+  .option("--runtime <name>", "Runtime for --adopt (default: config runtime)")
+  .option("--registry-url <url>", "Override registry base URL (--adopt)")
+  .option("--registry-version <version>", "Registry version/range/dist-tag for --adopt (default: config, else CLI major)")
+  .option("--strict-cdn", "Do not fall back when --registry-url is set (--adopt)")
+  .action(async (options) => {
+    await checkCommand(options)
+  })
 
 program
   .command("scan")

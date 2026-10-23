@@ -115,6 +115,61 @@ Shared always: `*.shared.ts`, `*.variants.json`. Types `registry:utils`, `regist
 
 ---
 
+## `check`
+
+Verify installed files against `ui8kit.lock.json`. **Offline** (no network) unless `--adopt`.
+
+```bash
+ui8kit check
+ui8kit check --json
+ui8kit check --adopt          # existing install without a lock
+```
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Print the report as JSON (`ok`, `errors[]`, `warnings[]`, `items`, `files`) |
+| `--adopt` | Fetch registry items, hash the expected content and add **only matching** files to the lock; mismatches are reported (`not-adopted`) |
+| `--runtime`, `--registry-url`, `--registry-version`, `--strict-cdn` | Registry settings for `--adopt` (default: config) |
+
+Errors (exit code 1):
+
+| Code | Meaning |
+|------|---------|
+| `no-lock` | no `ui8kit.lock.json` |
+| `missing` | a locked file is gone |
+| `modified` | content hash differs — a local edit, or the file was installed with other `aliases` / `importStyle` / `paths` (import rewrites change content) |
+| `mixed-versions` | primitives (`registry:ui` / `registry:utils`) from one source have different versions |
+| `rules-version` | `.cursor/rules` version differs from the primitives version |
+
+Warnings: `unknown-version` (no exact version recorded), `not-adopted`.
+
+### `ui8kit.lock.json`
+
+Written by `init` (utils, rules) and `add`; merged on every run, sorted, deterministic. Commit it.
+
+```json
+{
+  "lockVersion": 1,
+  "cli": "3.1.0",
+  "items": {
+    "https://unpkg.com/@ui8kit/registry@3/r/react|button": {
+      "name": "button",
+      "type": "registry:ui",
+      "source": "https://unpkg.com/@ui8kit/registry@3/r/react",
+      "version": "3.0.0",
+      "runtime": "react",
+      "files": { "src/ui/button/button.tsx": "<sha256>" }
+    }
+  }
+}
+```
+
+- `version` is exact: item `digest`, else the registry index `version`; never a range like `3`.
+- `files`: posix paths relative to the project root → sha256 of the written content (after import transforms / rules substitution; CRLF is normalized to LF, so `git autocrlf` is not an edit).
+- Files that `add` skipped because they already existed are recorded only if their content equals the registry content.
+
+---
+
 ## `list`
 
 List components advertised by the registry index.

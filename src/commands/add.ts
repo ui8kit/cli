@@ -1,6 +1,6 @@
 import path from "path"
 import prompts from "prompts"
-import { getComponent, getAllComponents } from "../registry/api.js"
+import { getComponent, getAllComponents, getComponentSource } from "../registry/api.js"
 import { findConfig } from "../utils/project.js"
 import { Component, type Config } from "../registry/schema.js"
 import { SCHEMA_CONFIG, type RegistryType, getCdnUrls, type CdnResolutionOptions } from "../utils/schema-config.js"
@@ -12,7 +12,8 @@ import { logger, Spinner } from "../utils/logger.js"
 import { normalizeDependencyName, resolveRegistryTreeDetailed } from "../utils/dependency-resolver.js"
 import { handleError, ConfigNotFoundError } from "../utils/errors.js"
 import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
-import { applyTransforms, shouldTransformFile } from "../utils/transform.js"
+import { planItemFiles, type PlannedFile } from "../utils/install-plan.js"
+import { exactVersion, updateLock, type LockEntryInput } from "../utils/lock.js"
 import {
   inferTargetFromType,
   resolveFileInstallPath,
@@ -20,7 +21,7 @@ import {
 } from "../utils/paths.js"
 import { applyPathOverrides, assertInsideRoot } from "../utils/paths.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
-import { assertKnownRuntime, filterFilesForRuntime } from "../utils/runtime-files.js"
+import { assertKnownRuntime } from "../utils/runtime-files.js"
 
 interface AddOptions {
   force?: boolean
@@ -35,6 +36,8 @@ interface AddOptions {
   runtime?: string
   /** Repeatable `--path key=dir` overrides (highest precedence, see docs/configuration.md). */
   path?: string[]
+  /** Internal: resolved CDN options (fallback lock source for items without provenance). */
+  cdnResolution?: CdnResolutionOptions
 }
 
 /**
@@ -68,8 +71,6 @@ export async function addCommand(components: string[], options: AddOptions) {
       throw new ConfigNotFoundError(registryType)
     }
     const config = applyPathOverrides(loadedConfig, options.path)
-  assertKnownRuntime(options.runtime)
-  assertKnownRuntime(config.runtime, "config runtime")
     assertKnownRuntime(options.runtime)
     assertKnownRuntime(config.runtime, "config runtime")
 
@@ -80,6 +81,7 @@ export async function addCommand(components: string[], options: AddOptions) {
       cdnBaseUrls: config.cdnBaseUrls,
       runtime: options.runtime || config.runtime,
     }
+    options.cdnResolution = cdnResolution
     const requestOptions = {
       excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
       maxRetries: options.retry ? 3 : 1,
@@ -211,6 +213,7 @@ async function processComponents(
   preloadedComponents?: Component[],
   totalCount?: number,
   explicitNames?: ReadonlySet<string>,
+  lockEntries?: LockEntryInput[],
 ): Promise<Array<{ name: string; status: "success" | "error"; error?: string }>> {
   const results: Array<{ name: string; status: "success" | "error"; error?: string }> = []
   const componentMap = new Map(preloadedComponents?.map(c => [c.name.toLowerCase(), c]))
@@ -252,37 +255,29 @@ async function processComponents(
         continue
       }
 
-      const filesForRuntime = filterFilesForRuntime(component.files, preferredRuntime, {
-        componentType: component.type,
-        itemRuntime: component.runtime,
-      })
+      const planned = planItemFiles(component, config, preferredRuntime)
 
-      if (preferredRuntime && filesForRuntime.length === 0) {
+      if (preferredRuntime && planned.length === 0) {
         spinner.info(
           `[${position}] skip ${component.name} (no files for runtime ${preferredRuntime})`,
         )
         continue
       }
 
-      const componentForInstall = { ...component, files: filesForRuntime }
-
       if (options.dryRun) {
         spinner.succeed(`[${position}] ${CLI_MESSAGES.status.wouldInstall(component.name, registryType)}`)
         logger.info(`   Type: ${component.type}`)
         if (preferredRuntime) {
-          logger.info(`   Runtime filter: ${preferredRuntime} (${filesForRuntime.length}/${component.files.length} files)`)
+          logger.info(`   Runtime filter: ${preferredRuntime} (${planned.length}/${component.files.length} files)`)
         }
         if (component.registryDependencies && component.registryDependencies.length > 0) {
           logger.info(`   Registry deps: ${component.registryDependencies.join(" -> ")}`)
         }
-        logger.info(`   Files: ${filesForRuntime.length}`)
+        logger.info(`   Files: ${planned.length}`)
         logger.info(`   Dependencies: ${component.dependencies.join(", ") || "none"}`)
 
-        for (const file of filesForRuntime) {
-          const targetPath = path.join(
-            process.cwd(),
-            resolveFileInstallPath(file, component.type, config),
-          )
+        for (const { rel, content: transformedIncoming } of planned) {
+          const targetPath = path.resolve(process.cwd(), rel)
           const fileName = path.basename(targetPath)
           const exists = await pathExists(targetPath)
           const status = exists ? "overwrite" : "create"
@@ -290,9 +285,6 @@ async function processComponents(
 
           if (exists) {
             const currentContent = await readFile(targetPath, "utf-8")
-            const transformedIncoming = shouldTransformFile(fileName)
-              ? applyTransforms(file.content, config.aliases, config.importStyle || "alias")
-              : file.content
             const changed = hasDiff(currentContent, transformedIncoming)
             if (changed) {
               const patch = buildUnifiedDiff(
@@ -318,7 +310,18 @@ async function processComponents(
         SHARED_FOUNDATION_TYPES.has(component.type) &&
         explicitNames !== undefined &&
         !explicitNames.has(component.name.toLowerCase())
-      await installComponentFiles(componentForInstall, config, options.force && !pulledIn, { quiet: pulledIn })
+      const lockFiles = await installPlannedFiles(planned, options.force && !pulledIn, { quiet: pulledIn })
+      if (lockEntries) {
+        const source = getComponentSource(component)
+        lockEntries.push({
+          name: component.name,
+          type: component.type,
+          source: source?.base ?? getCdnUrls(SCHEMA_CONFIG.defaultRegistryType, options.cdnResolution)[0] ?? "unknown",
+          version: exactVersion(component.digest, source?.indexVersion),
+          runtime: component.runtime ?? preferredRuntime,
+          files: lockFiles,
+        })
+      }
 
       if (component.dependencies.length > 0) {
         try {
@@ -451,6 +454,7 @@ async function installRequestedComponents(
   }))
 
   const explicitNames = new Set(normalizedRequested.map(normalizeDependencyName))
+  const lockEntries: LockEntryInput[] = []
   const processingResults = await processComponents(
     orderedComponents.map(component => component.name),
     registryType,
@@ -460,7 +464,15 @@ async function installRequestedComponents(
     orderedComponents,
     orderedComponents.length,
     explicitNames,
+    lockEntries,
   )
+  if (!options.dryRun) {
+    try {
+      await updateLock(lockEntries)
+    } catch (error) {
+      logger.warn(`Could not update ui8kit.lock.json: ${(error as Error).message}`)
+    }
+  }
   return [...missingResults, ...processingResults]
 }
 
@@ -486,28 +498,38 @@ function displayInstallationSummary(
   }
 }
 
+/**
+ * Write planned files (existing files are kept unless `force`). Returns what the lock should record:
+ * written files, plus kept files whose content already equals the planned content.
+ */
+async function installPlannedFiles(
+  planned: PlannedFile[],
+  force = false,
+  opts: { quiet?: boolean } = {},
+): Promise<Array<{ rel: string; content: string }>> {
+  const record: Array<{ rel: string; content: string }> = []
+  for (const { rel, content } of planned) {
+    const targetPath = assertInsideRoot(process.cwd(), rel)
+    if (!force && (await pathExists(targetPath))) {
+      if (!opts.quiet) console.log(`   ⚠️  ${CLI_MESSAGES.status.skipped(path.basename(targetPath))}`)
+      const current = await readFile(targetPath, "utf-8")
+      if (current.replace(/\r\n/g, "\n") === content.replace(/\r\n/g, "\n")) record.push({ rel, content })
+      continue
+    }
+    await fsEnsureDir(path.dirname(targetPath))
+    await writeFile(targetPath, content, "utf-8")
+    record.push({ rel, content })
+  }
+  return record
+}
+
 async function installComponentFiles(
   component: Component,
   config: Config,
   force = false,
   opts: { quiet?: boolean } = {},
 ): Promise<void> {
-  for (const file of component.files) {
-    const relative = resolveFileInstallPath(file, component.type, config)
-    const targetPath = assertInsideRoot(process.cwd(), relative)
-    const fileName = path.basename(targetPath)
-
-    if (!force && (await pathExists(targetPath))) {
-      if (!opts.quiet) console.log(`   ⚠️  ${CLI_MESSAGES.status.skipped(fileName)}`)
-      continue
-    }
-
-    await fsEnsureDir(path.dirname(targetPath))
-    const preparedContent = shouldTransformFile(fileName)
-      ? applyTransforms(file.content, config.aliases, config.importStyle || "alias")
-      : file.content
-    await writeFile(targetPath, preparedContent, "utf-8")
-  }
+  await installPlannedFiles(planItemFiles(component, config), force, opts)
 }
 
 function resolveRegistryType(registryInput?: string): RegistryType {
