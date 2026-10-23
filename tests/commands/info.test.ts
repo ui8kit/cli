@@ -11,7 +11,7 @@ import path from "path"
 import os from "os"
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { infoCommand } from "../../src/commands/info.js"
-import { SCHEMA_CONFIG } from "../../src/utils/schema-config.js"
+import { SCHEMA_CONFIG, getCdnUrls } from "../../src/utils/schema-config.js"
 import * as packageManager from "../../src/utils/package-manager.js"
 
 vi.mock("../../src/utils/package-manager.js", () => ({
@@ -69,7 +69,7 @@ describe("info command", () => {
     expect(logs).toContain("Config  ./ui8kit.config.json (found)")
     expect(logs).toContain("  framework    react")
     expect(logs).toContain("  globalCss    styles.css")
-    expect(logs).toContain(`CDN       ${SCHEMA_CONFIG.cdnBaseUrls[0]} (ok)`)
+    expect(logs).toContain(`CDN       ${getCdnUrls("ui")[0]} (ok)`)
   })
 
   it("prints cache stats when config is missing", async () => {
@@ -81,7 +81,7 @@ describe("info command", () => {
 
     expect(logs).toContain("Config  not found")
     expect(logs).toContain("PM      npm")
-    expect(logs).toContain(`CDN       ${SCHEMA_CONFIG.cdnBaseUrls[0]} (failed)`)
+    expect(logs).toContain(`CDN       ${getCdnUrls("ui")[0]} (failed)`)
   })
 
   it("outputs JSON when requested", async () => {

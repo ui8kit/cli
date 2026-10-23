@@ -6,7 +6,7 @@ A **base** is a URL that already points at the `/r` tree (no trailing slash requ
 
 ```text
 https://cdn.example.com/ui8kit/r
-https://unpkg.com/@ui8kit/registry@latest/r
+https://unpkg.com/@ui8kit/registry@3/r/react
 http://127.0.0.1:4173/r
 ```
 
@@ -29,10 +29,14 @@ From that base the CLI requests:
    - built-in defaults:
 
 ```text
-https://unpkg.com/@ui8kit/registry@latest/r
-https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r
-https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r
+https://unpkg.com/@ui8kit/registry@<v>/r[/<runtime>]
+https://cdn.jsdelivr.net/npm/@ui8kit/registry@<v>/r[/<runtime>]
 ```
+
+`<v>` = `registryVersion` when set, otherwise the CLI's own major (ui8kit 3.x → `3`).
+Both CDNs resolve npm major ranges (`@3` → newest 3.x.y; jsDelivr: "Use a version range
+instead of an exact version: `/npm/jquery@3/…`", unpkg redirects `@3` to the exact version).
+`/<runtime>` is appended for registry `>= 3` (per-runtime digests).
 
 ### Strict mode
 
@@ -44,10 +48,13 @@ Only that URL is tried. Failures do **not** fall back to public CDNs. Prefer thi
 
 ### Version pinning
 
-`--registry-version 0.1.0` / `registryVersion` rewrites `@latest` in URL templates:
+Default (no `registryVersion`): same major range as the CLI, **not** an exact pin.
+Pin with `--registry-version 3.0.0` / `registryVersion`; canary with `--registry-version canary`.
+The `@latest` placeholder in URL templates is rewritten:
 
 ```text
-…/@ui8kit/registry@latest/r  →  …/@ui8kit/registry@0.1.0/r
+…/@ui8kit/registry@latest/r  →  …/@ui8kit/registry@3/r/react      (default, CLI 3.x)
+…/@ui8kit/registry@latest/r  →  …/@ui8kit/registry@3.0.0/r/react  (--registry-version 3.0.0)
 ```
 
 Custom hosts without `@latest` are left unchanged; pin by changing the path yourself or hosting immutable digests.
@@ -78,7 +85,7 @@ Successful JSON responses are cached under:
 - Bypass: `ui8kit --no-cache …` or clear with `ui8kit cache clear`
 - `reset --with-cache` also clears the cache
 
-Cache keys are derived from request paths; safe to delete anytime.
+Cache keys are scoped by the resolved registry bases (URL, version/range, runtime folder) and the runtime, so different registries, versions and runtimes never share entries. Safe to delete anytime.
 
 ## Offline / air-gapped
 

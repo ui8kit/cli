@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs"
+import { cacheScope } from "../../src/registry/api.js"
 import {
   ensureDir,
   pathExists,
@@ -374,9 +375,11 @@ describe("CLI integration commands", () => {
     const homeDir = path.join(cwd, ".home")
     const now = Date.now()
     const cacheBase = path.join(homeDir, ".ui8kit", "cache")
-    const indexFile = path.join(cacheBase, "ui", "index.json")
+    // Cache is scoped by resolved registry bases + runtime (no config here → defaults).
+    const scope = cacheScope("ui", { cdn: { runtime: undefined } })
+    const indexFile = path.join(cacheBase, ...scope.split("/"), "index.json")
     const indexMeta = `${indexFile}.meta.json`
-    const componentFile = path.join(cacheBase, "ui", "components", "button.json")
+    const componentFile = path.join(cacheBase, ...scope.split("/"), "components", "button.json")
     const componentMeta = `${componentFile}.meta.json`
 
     mkdirSync(path.dirname(indexFile), { recursive: true })

@@ -31,7 +31,7 @@ ui8kit init [options]
 | `--dir <path>` | Install root |
 | `--skip-core` | Do not fetch lib/utils/variants on init |
 | `--registry-url <url>` | Registry base override |
-| `--registry-version <version>` | Pin `@latest` |
+| `--registry-version <version>` | Registry version/range/dist-tag (default: CLI major) |
 | `--strict-cdn` | No CDN fallback when URL set |
 | `--import-style <alias\|package>` | Import rewrite style |
 

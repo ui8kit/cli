@@ -90,7 +90,10 @@ function getOutputDir(type: string): string {
   return folder || "misc"
 }
 
-async function createIndexFile(registry: { items: any[]; registry?: string; version?: string }, outputDir: string) {
+async function createIndexFile(
+  registry: { items: any[]; registry?: string; version?: string; meta?: Record<string, unknown> },
+  outputDir: string,
+) {
   const index = {
     $schema: "https://ui.buildy.tw/schema/registry.json",
     components: registry.items.map((item) => ({
@@ -105,6 +108,8 @@ async function createIndexFile(registry: { items: any[]; registry?: string; vers
     version: registry.version || "1.0.0",
     lastUpdated: new Date().toISOString(),
     registry: registry?.registry || SCHEMA_CONFIG.defaultRegistryType,
+    // Free-form registry metadata, e.g. brand registries: meta.primitives { registry, version }.
+    ...(registry.meta ? { meta: registry.meta } : {}),
   }
 
   await writeFile(path.join(outputDir, "index.json"), JSON.stringify(index, null, 2))

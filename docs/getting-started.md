@@ -14,10 +14,10 @@ You do not need a global install. Prefer one-shot runners:
 
 ```bash
 # npm
-npx ui8kit@latest --help
+npx ui8kit@3 --help
 
 # Bun
-bunx ui8kit@latest --help
+bunx ui8kit@3 --help
 
 # After adding as a devDependency
 npm i -D ui8kit

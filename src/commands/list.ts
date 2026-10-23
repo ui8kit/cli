@@ -2,6 +2,7 @@ import { Component } from "../registry/schema.js"
 import { getAllComponents } from "../registry/api.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { logger } from "../utils/logger.js"
+import { findConfig } from "../utils/project.js"
 import { CdnResolutionOptions, SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
 
 const LIST_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils", "registry:rules"]
@@ -17,10 +18,14 @@ interface ListOptions {
 
 export async function listCommand(options: ListOptions = {}) {
   const registryType = resolveRegistryType(options.registry)
+  // Flags win over ui8kit.config.json (same resolution as `add`).
+  const config = await findConfig(registryType).catch(() => null)
   const cdnResolution: CdnResolutionOptions = {
-    registryUrl: options.registryUrl,
-    registryVersion: options.registryVersion,
-    strictCdn: options.strictCdn
+    registryUrl: options.registryUrl || config?.registryUrl,
+    registryVersion: options.registryVersion || config?.registryVersion,
+    strictCdn: options.strictCdn ?? config?.strictCdn,
+    cdnBaseUrls: config?.cdnBaseUrls,
+    runtime: config?.runtime,
   }
   const requestOptions = {
     excludeTypes: LIST_EXCLUDED_COMPONENT_TYPES,

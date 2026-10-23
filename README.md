@@ -2,7 +2,7 @@
 
 Universal **shadcn-style** registry service: `init` / `add` / `list` / `diff` / `scan` / `build` — fetch registry items and **write files into your app** (not into `node_modules`). Tailwind sees classes. Works for React, Svelte, Vue, Solid, Go Templ, Latte, Twig, Jinja2 — via `framework` / `runtime` + path contracts.
 
-Contract version: **2.0.0** · npm package: **`ui8kit@3.0.0`** · digest: **`@ui8kit/registry@3.0.0`** (per-runtime `r/<runtime>/`; `--registry-version 3.0.0` resolves it, legacy `@2.0.0` root `r/` still works)
+Contract version: **2.0.0** · npm package: **`ui8kit@3.x`** · digest: **`@ui8kit/registry@3`** (per-runtime `r/<runtime>/`; the default registry range is the CLI's own major, see [Registry version](#registry-version))
 
 **Full documentation (English):** [docs/README.md](./docs/README.md)  
 **Agents / maintainers:** [AGENTS.md](./AGENTS.md) · project hub: [.project/README.md](./.project/README.md)
@@ -31,7 +31,7 @@ Codegen (separate) emits primitives; this CLI **installs** registry packages int
 
 ## New app — utils + UI (recommended)
 
-Published digest: `@ui8kit/registry@2.0.0` (`/r` on unpkg / jsDelivr).
+Published digest: `@ui8kit/registry@3` (`/r/<runtime>/` on unpkg / jsDelivr). ui8kit 3.x uses it by default; no `--registry-url` needed.
 
 > Since 2.0.2 `registry:utils` / `registry:lib` are also resolved through `registryDependencies` (`ui8kit add utils` works). Installing utils through **`init` (without `--skip-core`)** is still the simplest path.
 
@@ -39,19 +39,16 @@ Published digest: `@ui8kit/registry@2.0.0` (`/r` on unpkg / jsDelivr).
 
 ```bash
 # Svelte example — omit --skip-core so core utils land under src/utils
-bunx ui8kit@3.0.0 init --yes \
-  --framework svelte \
-  --runtime svelte \
-  --dir src \
-  --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r \
-  --strict-cdn
+bunx ui8kit@3 init --yes --framework svelte --dir src
+# → registry https://unpkg.com/@ui8kit/registry@3/r/svelte (same major as the CLI)
+# pin an exact digest: add --registry-version 3.0.0
 ```
 
 Confirm: `src/utils/cn.ts` (and friends) exist. If the folder is empty, re-run init without `--skip-core` or fetch utils manually (see below).
 
 ### 2. Fill `ui8kit.config.json`
 
-After init, edit to pin CDN + runtime (example for Vite/Svelte under `src/`):
+After init, optionally pin the exact registry digest (`registryVersion`) (example for Vite/Svelte under `src/`):
 
 ```json
 {
@@ -67,9 +64,7 @@ After init, edit to pin CDN + runtime (example for Vite/Svelte under `src/`):
     "@/utils": "./src/utils"
   },
   "registry": "@ui8kit",
-  "registryUrl": "https://unpkg.com/@ui8kit/registry@2.0.0/r",
-  "registryVersion": "2.0.0",
-  "strictCdn": true,
+  "registryVersion": "3.0.0",
   "importStyle": "alias"
 }
 ```
@@ -79,9 +74,9 @@ After init, edit to pin CDN + runtime (example for Vite/Svelte under `src/`):
 ### 3. Add UI (runtime file filter)
 
 ```bash
-bunx ui8kit@3.0.0 add button stack title text --runtime svelte --force
+bunx ui8kit@3 add button stack title text --runtime svelte --force
 # or everything:
-bunx ui8kit@3.0.0 add --all --runtime svelte --force
+bunx ui8kit@3 add --all --runtime svelte --force
 ```
 
 `--runtime svelte` keeps `.svelte`, `*.shared.ts`, `*.variants.json`, **type files** (`*.types.ts`, `*.d.ts`) and **any file a kept file imports** (relative imports, followed transitively), so installs never end up with unresolved imports.
@@ -97,7 +92,7 @@ bun add clsx tailwind-merge
 
 ```bash
 # Download item JSON and write files[] into {dir} by each file.target
-curl -sL https://unpkg.com/@ui8kit/registry@2.0.0/r/utils/utils.json
+curl -sL https://unpkg.com/@ui8kit/registry@3/r/svelte/utils/utils.json
 # → write each files[].content to src/{files[].target}
 ```
 
@@ -107,7 +102,7 @@ Or with Node one-liner from app root (after `init` created `src/`):
 node --input-type=module -e "
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-const item = await fetch('https://unpkg.com/@ui8kit/registry@2.0.0/r/utils/utils.json').then(r => r.json());
+const item = await fetch('https://unpkg.com/@ui8kit/registry@3/r/svelte/utils/utils.json').then(r => r.json());
 for (const f of item.files) {
   const target = path.join('src', f.target);
   mkdirSync(path.dirname(target), { recursive: true });
@@ -120,17 +115,16 @@ for (const f of item.files) {
 ## Quick start (short)
 
 ```bash
-bunx ui8kit@3.0.0 init --yes --framework svelte --runtime svelte --dir src \
-  --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
-bunx ui8kit@3.0.0 add button --runtime svelte --force
+bunx ui8kit@3 init --yes --framework svelte --dir src
+bunx ui8kit@3 add button --runtime svelte --force
 ```
 
 Go / PHP (kit on disk). Prefer **with** core utils unless you only need markup:
 
 ```bash
-bunx ui8kit@3.0.0 init --yes --framework templ --runtime templ --dir internal \
-  --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
-bunx ui8kit@3.0.0 add button --runtime templ --force
+# templ/latte/twig/jinja2 are not in the 3.x per-runtime digest: use the 2.0.0 digest
+bunx ui8kit@3 init --yes --framework templ --runtime templ --dir internal --registry-version 2.0.0
+bunx ui8kit@3 add button --runtime templ --force
 ```
 
 ## Canonical folders under `{dir}`
@@ -178,11 +172,26 @@ See the filled example in [New app — utils + UI](#new-app--utils--ui-recommend
 
 1. `--registry-url` / `registryUrl`
 2. `cdnBaseUrls` from config (replaces built-in defaults when set)
-3. Built-in defaults (`unpkg` / `jsdelivr` for `@ui8kit/registry@latest/r`)
+3. Built-in defaults: `unpkg` / `jsdelivr` for `@ui8kit/registry@<CLI major>/r[/<runtime>]`
 
 `--strict-cdn` + explicit URL → **only** that URL.
 
-`--registry-version` rewrites `@latest` → `@2.0.0` in URL templates when applicable.
+### Registry version
+
+- **Default = same major range as the CLI**: ui8kit 3.x fetches `@ui8kit/registry@3` (newest 3.x.y on the CDN). Not pinned: a new registry 3.x release is picked up without a CLI update; `init` does not force pinning.
+- **Pin an exact digest**: `--registry-version 3.0.0` or `"registryVersion": "3.0.0"` in `ui8kit.config.json` (also accepts ranges like `3.1`).
+- **Canary**: `--registry-version canary` (npm dist-tag, e.g. `npm publish --tag canary`).
+- `--registry-version` rewrites the `@latest` placeholder in URL templates (built-in, `cdnBaseUrls`, `registryUrl`); custom hosts without it are used as-is.
+- Registry `>= 3` (or a dist-tag with CLI 3.x) is per-runtime: `/<runtime>` is appended to the built-in bases.
+
+### Cross-registry dependencies
+
+`registryDependencies` may be full item URLs, e.g. a brand block depending on
+`https://cdn.jsdelivr.net/npm/@ui8kit/registry@3.0.0/r/react/components/ui/button.json`.
+Bare-name dependencies of an item fetched by URL (`utils` of that button) resolve against
+**that item's registry** (`…/r/react`, strict). Brand registries can record the primitives
+digest in their `registry.json` top-level `meta` (copied to `index.json`), e.g.
+`"meta": { "primitives": { "registry": "@ui8kit/registry", "version": "3.0.0" } }`.
 
 ## Commands
 
@@ -192,7 +201,7 @@ See the filled example in [New app — utils + UI](#new-app--utils--ui-recommend
 bunx ui8kit init
 bunx ui8kit init --yes --framework none --dir src
 bunx ui8kit init --yes --framework templ --dir internal
-bunx ui8kit init --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
+bunx ui8kit init --yes --framework react --registry-version 3.0.0   # pin exact digest
 ```
 
 Creates `ui8kit.config.json` + canonical directories. **Without `--skip-core`**, pulls lib/utils/variants from the registry when present (this is how you get **utils** today).
@@ -204,7 +213,7 @@ bunx ui8kit add button
 bunx ui8kit add button card --force
 bunx ui8kit add --all --runtime svelte
 bunx ui8kit add button --dry-run
-bunx ui8kit add button --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
+bunx ui8kit add button --registry-url https://unpkg.com/@ui8kit/registry@3.0.0/r/react --strict-cdn
 ```
 
 Install **preserves nested paths** (e.g. `components/ui/button/Button.svelte`), no basename flatten.

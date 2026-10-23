@@ -6,7 +6,8 @@ import { getCachedJson, setCachedJson } from "../utils/cache.js"
 
 const REGISTRY_INDEX_CACHE_TTL_MS = 3_600_000
 
-const registryCache = new Map<RegistryType, {
+/** In-memory state per cache scope (registry bases + runtime), see cacheScope. */
+const registryCache = new Map<string, {
   workingCDN: string | null
   registryIndex: any
 }>()
@@ -24,13 +25,16 @@ export interface RegistryFetchOptions {
 }
 
 /**
- * Cache key namespace. An explicit registry URL gets its own namespace so that
- * two registries (e.g. one per runtime) never share cached items by name.
+ * Cache key namespace: the resolved registry bases (explicit URL, version /
+ * major range, per-runtime folder) plus the runtime, so two registries,
+ * versions or runtimes never share cached items by name.
  */
-function cacheScope(registryType: RegistryType, options: RegistryFetchOptions = {}): string {
-  const url = options.cdn?.registryUrl?.trim()
-  if (!url) return registryType
-  const hash = createHash("sha1").update(url.replace(/\/+$/, "")).digest("hex").slice(0, 10)
+export function cacheScope(registryType: RegistryType, options: RegistryFetchOptions = {}): string {
+  const bases = getCdnUrls(registryType, options.cdn).join("\n")
+  const hash = createHash("sha1")
+    .update(`${bases}\n${options.cdn?.runtime ?? ""}`)
+    .digest("hex")
+    .slice(0, 10)
   return `${registryType}/@${hash}`
 }
 
@@ -48,7 +52,7 @@ export function getRegistryCdnState(
   registryType: RegistryType,
   options: RegistryFetchOptions = {}
 ): { workingCDN: string | null; urls: string[] } {
-  const cache = getRegistryCache(registryType)
+  const cache = getRegistryCache(cacheScope(registryType, options))
   return {
     workingCDN: cache.workingCDN,
     urls: getCdnUrls(registryType, options.cdn)
@@ -64,14 +68,14 @@ export function isUrl(path: string): boolean {
   }
 }
 
-function getRegistryCache(registryType: RegistryType) {
-  if (!registryCache.has(registryType)) {
-    registryCache.set(registryType, {
+function getRegistryCache(scope: string) {
+  if (!registryCache.has(scope)) {
+    registryCache.set(scope, {
       workingCDN: null,
       registryIndex: null
     })
   }
-  return registryCache.get(registryType)!
+  return registryCache.get(scope)!
 }
 
 async function fetchJsonWithTimeout(url: string, timeoutMs: number): Promise<any> {
@@ -116,7 +120,7 @@ async function fetchFromRegistryPath(
 ): Promise<any> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
   const maxRetries = Math.max(1, options.maxRetries ?? DEFAULT_MAX_RETRIES)
-  const cache = getRegistryCache(registryType)
+  const cache = getRegistryCache(cacheScope(registryType, options))
   const cdnUrls = getCdnUrls(registryType, options.cdn)
 
   const orderedUrls = cache.workingCDN
@@ -145,7 +149,7 @@ async function fetchFromRegistryPath(
 
 async function getRegistryIndex(registryType: RegistryType, options: RegistryFetchOptions = {}): Promise<any> {
   if (cacheStateHasIndex(registryType, options)) {
-    return getCachedInMemory(registryType)
+    return getCachedInMemory(cacheScope(registryType, options))
   }
 
   const cached = await getCachedJson(
@@ -153,11 +157,11 @@ async function getRegistryIndex(registryType: RegistryType, options: RegistryFet
     { noCache: options.noCache, ttlMs: REGISTRY_INDEX_CACHE_TTL_MS }
   )
   if (cached) {
-    setCachedInMemory(registryType, cached)
+    setCachedInMemory(cacheScope(registryType, options), cached)
     return cached
   }
 
-  const cache = getRegistryCache(registryType)
+  const cache = getRegistryCache(cacheScope(registryType, options))
 
   cache.registryIndex = await fetchFromRegistryPath("index.json", registryType, options)
   await setCachedJson(
@@ -299,16 +303,16 @@ function cacheStateHasIndex(registryType: RegistryType, options: RegistryFetchOp
   if (options.noCache) {
     return false
   }
-  const cache = getRegistryCache(registryType)
+  const cache = getRegistryCache(cacheScope(registryType, options))
   return Boolean(cache.registryIndex)
 }
 
-function getCachedInMemory(registryType: RegistryType) {
-  return getRegistryCache(registryType).registryIndex
+function getCachedInMemory(scope: string) {
+  return getRegistryCache(scope).registryIndex
 }
 
-function setCachedInMemory(registryType: RegistryType, index: any) {
-  const cache = getRegistryCache(registryType)
+function setCachedInMemory(scope: string, index: any) {
+  const cache = getRegistryCache(scope)
   cache.registryIndex = index
 }
 
@@ -331,7 +335,9 @@ export async function getComponents(
 
 export function resetCache(registryType?: RegistryType): void {
   if (registryType) {
-    registryCache.delete(registryType)
+    for (const key of [...registryCache.keys()]) {
+      if (key === registryType || key.startsWith(`${registryType}/`)) registryCache.delete(key)
+    }
     logger.debug(`Cache reset for ${registryType} - will rediscover working CDN`)
   } else {
     registryCache.clear()

@@ -3,7 +3,8 @@ import { Component } from "../registry/schema.js"
 import { type RegistryType } from "../utils/schema-config.js"
 import { extractRelativeImports, isTypeFile, resolveImportKey } from "./runtime-files.js"
 
-type GetComponentFn = (name: string, registryType: RegistryType) => Promise<Component | null>
+/** `registryBase` is set for bare names scoped to the registry of an item fetched by URL. */
+type GetComponentFn = (name: string, registryType: RegistryType, registryBase?: string) => Promise<Component | null>
 
 export type EdgeKind = "type-only" | "value" | "unknown"
 
@@ -68,21 +69,64 @@ function describeEdge(edge: DependencyEdge): string {
   return `${edge.from} -> ${edge.to}`
 }
 
-export async function resolveRegistryTree(
+/**
+ * Registry base of an item fetched by URL: the part before the canonical type
+ * folder (`…/r/react/components/ui/button.json` → `…/r/react`). Falls back to
+ * the URL's directory. Query string and hash are dropped.
+ */
+export function registryBaseFromUrl(url: string): string {
+  const clean = url.trim().replace(/[?#].*$/, "")
+  const m = clean.match(
+    /^(.*?)\/(?:components\/ui|components\/variants|components|blocks|layouts|widgets|variants|utils|lib|rules)\/[^/]+\.json$/i,
+  )
+  if (m) return m[1]!
+  return clean.replace(/\/[^/]*$/, "")
+}
+
+function isUrlLike(value: string): boolean {
+  return /^https?:\/\//i.test(value.trim())
+}
+
+export interface ResolvedRegistryTree {
+  components: Component[]
+  /** Requested names (as given) that could not be resolved. */
+  missing: string[]
+}
+
+/**
+ * Resolve requested items and their `registryDependencies` (depth-first,
+ * topologically ordered, each item once).
+ *
+ * Addresses:
+ *  - bare name (`button`, `utils/cn`): the active registry, or — when the
+ *    dependent item was fetched by URL — that item's registry base;
+ *  - URL (`https://…/r/react/components/ui/button.json`): fetched directly; its
+ *    own bare-name deps resolve against its registry base (strict, no fallback).
+ * Tree keys are `base|name` for base-scoped items, so a brand `button` and a
+ * primitive `button` from another registry do not collapse into one.
+ */
+export async function resolveRegistryTreeDetailed(
   componentNames: string[],
   registryType: RegistryType,
   getComponent: GetComponentFn
-): Promise<Component[]> {
-  const componentsByName = new Map<string, Component>()
+): Promise<ResolvedRegistryTree> {
+  const componentsByKey = new Map<string, Component>()
+  const depKeysByKey = new Map<string, string[]>()
   const state = new Map<string, "visiting" | "done">()
   const visitStack: string[] = []
   const backEdges = new Set<string>()
   const cycleStacks: string[][] = []
 
-  const ensureComponent = async (name: string): Promise<Component | null> => {
-    const key = normalizeDependencyName(name)
+  const keyFor = (name: string, base?: string): string => {
+    if (isUrlLike(name)) return name.trim()
+    const bare = normalizeDependencyName(name)
+    return base ? `${base}|${bare}` : bare
+  }
+
+  const ensureComponent = async (name: string, base?: string): Promise<string | null> => {
+    const key = keyFor(name, base)
     if (state.get(key) === "done") {
-      return componentsByName.get(key) ?? null
+      return componentsByKey.has(key) ? key : null
     }
 
     if (state.get(key) === "visiting") {
@@ -93,65 +137,59 @@ export async function resolveRegistryTree(
         backEdges.add(`${from}\u0000${key}`)
         cycleStacks.push(visitStack.slice(at))
       }
-      return componentsByName.get(key) ?? null
+      return key
     }
 
-    const component = await getComponent(name, registryType)
+    const url = isUrlLike(name)
+    const component = url ? await getComponent(name.trim(), registryType) : await getComponent(name, registryType, base)
     if (!component) {
-      logger.warn(`Component ${name} not found in ${registryType} registry, skipping`)
+      logger.warn(`Component ${name} not found in ${base ?? registryType} registry, skipping`)
       state.set(key, "done")
       return null
     }
 
-    componentsByName.set(key, component)
+    componentsByKey.set(key, component)
     state.set(key, "visiting")
     visitStack.push(key)
 
+    const childBase = url ? registryBaseFromUrl(name) : base
+    const depKeys: string[] = []
     for (const dependency of component.registryDependencies ?? []) {
-      await ensureComponent(dependency)
+      const depKey = await ensureComponent(dependency, childBase)
+      if (depKey && !depKeys.includes(depKey)) depKeys.push(depKey)
     }
+    depKeysByKey.set(key, depKeys)
 
     visitStack.pop()
     state.set(key, "done")
-    return component
+    return key
   }
 
+  const missing: string[] = []
   for (const name of componentNames) {
-    await ensureComponent(name)
+    if (!(await ensureComponent(name))) missing.push(name)
   }
-
-  const keyOf = (component: Component) => component.name.toLowerCase()
-  const keyByNormalized = new Map<string, string>()
-  for (const [k, component] of componentsByName) keyByNormalized.set(k, keyOf(component))
 
   const graph = new Map<string, Set<string>>()
   const inDegree = new Map<string, number>()
-  for (const component of componentsByName.values()) {
-    const name = keyOf(component)
-    graph.set(name, new Set())
-    inDegree.set(name, 0)
+  for (const key of componentsByKey.keys()) {
+    graph.set(key, new Set())
+    inDegree.set(key, 0)
   }
 
-  for (const [fromKey, component] of componentsByName) {
-    const from = keyOf(component)
-    const seenDeps = new Set<string>()
-    for (const dep of component.registryDependencies ?? []) {
-      const depKey = normalizeDependencyName(dep)
-      const target = componentsByName.get(depKey)
-      if (!target || seenDeps.has(depKey)) continue
-      seenDeps.add(depKey)
+  for (const [from, depKeys] of depKeysByKey) {
+    for (const to of depKeys) {
+      if (!componentsByKey.has(to) || to === from) continue
       // Back edges (cycle closers) do not constrain the install order.
-      if (backEdges.has(`${fromKey}\u0000${depKey}`)) continue
-      const to = keyOf(target)
-      if (to === from) continue
+      if (backEdges.has(`${from}\u0000${to}`)) continue
       graph.get(to)!.add(from)
       inDegree.set(from, (inDegree.get(from) ?? 0) + 1)
     }
   }
 
   const queue: string[] = []
-  inDegree.forEach((value, name) => {
-    if (value === 0) queue.push(name)
+  inDegree.forEach((value, key) => {
+    if (value === 0) queue.push(key)
   })
 
   const orderedKeys: string[] = []
@@ -166,20 +204,23 @@ export async function resolveRegistryTree(
   }
 
   // Defensive: back edges are removed above, so this should not trigger.
-  for (const component of componentsByName.values()) {
-    const key = keyOf(component)
+  for (const key of componentsByKey.keys()) {
     if (!orderedKeys.includes(key)) orderedKeys.push(key)
   }
 
   if (cycleStacks.length > 0) {
-    reportCycles(findCycles(cycleStacks, componentsByName))
+    reportCycles(findCycles(cycleStacks, componentsByKey))
   }
 
-  const byComponentName = new Map<string, Component>()
-  for (const component of componentsByName.values()) byComponentName.set(keyOf(component), component)
-  return orderedKeys
-    .map(key => byComponentName.get(key))
-    .filter((component): component is Component => Boolean(component))
+  return { components: orderedKeys.map(key => componentsByKey.get(key)!), missing }
+}
+
+export async function resolveRegistryTree(
+  componentNames: string[],
+  registryType: RegistryType,
+  getComponent: GetComponentFn
+): Promise<Component[]> {
+  return (await resolveRegistryTreeDetailed(componentNames, registryType, getComponent)).components
 }
 
 /** Build cycle descriptions (deduplicated) with classified edges. */

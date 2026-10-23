@@ -8,6 +8,9 @@ describe("per-runtime registry (digest >= 3)", () => {
     expect(isPerRuntimeRegistryVersion("@3.1.0")).toBe(true)
     expect(isPerRuntimeRegistryVersion("2.0.0")).toBe(false)
     expect(isPerRuntimeRegistryVersion(undefined)).toBe(false)
+    expect(isPerRuntimeRegistryVersion("3")).toBe(true)
+    expect(isPerRuntimeRegistryVersion("^3.1")).toBe(true)
+    expect(isPerRuntimeRegistryVersion("2")).toBe(false)
   })
 
   it("appends /<runtime> to default CDN bases for 3.x, keeps explicit URL as-is", () => {
@@ -17,7 +20,8 @@ describe("per-runtime registry (digest >= 3)", () => {
     expect(getCdnUrls("ui", { registryVersion: "2.0.0", runtime: "vue" })).toContain(
       "https://unpkg.com/@ui8kit/registry@2.0.0/r",
     )
-    expect(getCdnUrls("ui", { runtime: "vue" })).toContain("https://unpkg.com/@ui8kit/registry@latest/r")
+    // default = CLI major range (3.x CLI → @3, per-runtime)
+    expect(getCdnUrls("ui", { runtime: "vue" })).toContain("https://unpkg.com/@ui8kit/registry@3/r/vue")
   })
 })
 

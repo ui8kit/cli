@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-23
+
+### Changed
+- Default registry CDNs use the CLI's own major range instead of `@latest` (ui8kit 3.x → `@ui8kit/registry@3`, derived from the package version). `--registry-version` / `registryVersion` still override (exact `3.0.0`, range, or dist-tag such as `canary`). Not pinned by default; `init` does not force pinning.
+- Removed the `raw.githubusercontent.com/ui8kit/core/refs/heads/main` fallback (unversioned branch of another repo).
+- `list` and `diff` read `registryUrl`, `registryVersion`, `runtime`, `strictCdn`, `cdnBaseUrls` from `ui8kit.config.json` like `add` (flags win).
+- Cache scope (disk and in-memory index) includes the resolved registry bases (URL, version, runtime folder) and runtime.
+
+### Added
+- URL `registryDependencies`: bare-name deps of an item fetched by URL resolve against that item's registry base (strict, no fallback); dependency-tree keys are `base|name`, so same-named items from two registries no longer collapse. Requested URLs are no longer reported as "not found".
+- `build` copies top-level registry `meta` (and `registry`) into `index.json`, e.g. brand `meta.primitives { registry, version }`.
+
 ## [3.0.0] - 2026-10-23
 
 ### Added

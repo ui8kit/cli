@@ -1,3 +1,4 @@
+import { getCliVersion } from "./cli-version.js"
 // Universal UI8Kit CLI configuration — contracts, not frameworks.
 
 export const FRAMEWORKS = [
@@ -121,12 +122,13 @@ export const SCHEMA_CONFIG = {
 
   /**
    * Default CDN bases (still overridable per-project via config.cdnBaseUrls
-   * or --registry-url). Placeholders: none — full URLs.
+   * or --registry-url). `@latest` is a placeholder: it is rewritten to
+   * `registryVersion` when set, otherwise to the CLI's own major range
+   * (ui8kit 3.x → `@ui8kit/registry@3`), see getCdnUrls.
    */
   cdnBaseUrls: [
     "https://unpkg.com/@ui8kit/registry@latest/r",
     "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
-    "https://raw.githubusercontent.com/ui8kit/core/refs/heads/main/packages/registry/r",
   ] as readonly string[],
 
   componentCategories: [
@@ -223,10 +225,33 @@ export interface CdnResolutionOptions {
   runtime?: string
 }
 
-/** Registry digests >= 3 publish one registry per runtime under `r/<runtime>/`. */
+/** Major of the running CLI (`3.0.1` → `3`), from its own package.json. */
+export function getCliMajor(): string {
+  const m = getCliVersion().match(/^(\d+)\./)
+  return m && m[1] !== "0" ? m[1]! : ""
+}
+
+/**
+ * Registry version used for `@latest` placeholders: explicit `registryVersion`,
+ * else the CLI's major range (same major as the CLI), else unchanged.
+ */
+export function effectiveRegistryVersion(version?: string): string | undefined {
+  const explicit = version?.trim()
+  if (explicit) return explicit
+  return getCliMajor() || undefined
+}
+
+/**
+ * Registry digests >= 3 publish one registry per runtime under `r/<runtime>/`.
+ * Numeric versions/ranges (`3`, `3.0.0`, `^3.1`) decide by major; dist-tags
+ * (`canary`, `next`, `latest`) follow the CLI's major.
+ */
 export function isPerRuntimeRegistryVersion(version?: string): boolean {
-  const m = version?.trim().replace(/^@/, "").match(/^(\d+)\./)
-  return Boolean(m && Number(m[1]) >= 3)
+  const v = version?.trim().replace(/^@/, "").replace(/^[\^~=v]+/, "")
+  if (!v) return false
+  const m = v.match(/^(\d+)(?:\.|$)/)
+  if (m) return Number(m[1]) >= 3
+  return Number(getCliMajor() || 0) >= 3
 }
 
 function normalizeCdnVersion(version?: string): string {
@@ -252,13 +277,14 @@ function normalizeCdnBaseUrl(url: string): string {
  * strictCdn + registryUrl → only that URL.
  */
 export function getCdnUrls(_registryType: RegistryType, options: CdnResolutionOptions = {}): string[] {
+  const version = effectiveRegistryVersion(options.registryVersion)
   const defaults = (options.cdnBaseUrls?.length
     ? options.cdnBaseUrls
     : [...SCHEMA_CONFIG.cdnBaseUrls]
   )
-    .map((url) => applyRegistryVersion(url, options.registryVersion))
+    .map((url) => applyRegistryVersion(url, version))
     .map((url) =>
-      options.runtime && isPerRuntimeRegistryVersion(options.registryVersion)
+      options.runtime && isPerRuntimeRegistryVersion(version)
         ? `${normalizeCdnBaseUrl(url)}/${options.runtime}`
         : url,
     )
@@ -266,7 +292,7 @@ export function getCdnUrls(_registryType: RegistryType, options: CdnResolutionOp
   const resolved: string[] = []
   const explicitUrl = options.registryUrl
     ? normalizeCdnBaseUrl(
-        applyRegistryVersion(normalizeCdnBaseUrl(options.registryUrl), options.registryVersion),
+        applyRegistryVersion(normalizeCdnBaseUrl(options.registryUrl), version),
       )
     : ""
 

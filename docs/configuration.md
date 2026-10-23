@@ -55,7 +55,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 | `aliases` | record | see defaults | Import alias map for rewrite |
 | `registry` | string | `"@ui8kit"` | Registry name label |
 | `registryUrl` | url | — | Preferred registry base (`…/r`) |
-| `registryVersion` | string | — | Pin: rewrites `@latest` → `@version` in URL templates |
+| `registryVersion` | string | CLI major (e.g. `3`) | Registry version/range/dist-tag for `@latest` placeholders: `3.0.0` (pin), `3`, `canary` |
 | `cdnBaseUrls` | string[] | built-ins | Full ordered CDN bases (replaces defaults when set) |
 | `strictCdn` | boolean | `false` | With `registryUrl` / `--registry-url`, do not fall back |
 | `importStyle` | `"alias"` \| `"package"` | `"alias"` | How `@/…` imports are rewritten on install |

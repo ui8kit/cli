@@ -184,3 +184,23 @@ describe("dependency resolver: typed deps and cycles (gaps 2 and 4)", () => {
     expect(resolved[resolved.length - 1]!.name).toBe("top")
   })
 })
+
+describe("URL dependencies (base-scoped keys)", () => {
+  it("keeps a same-named item from another registry and scopes its bare deps to that registry", async () => {
+    const url = "https://cdn.example.com/r/react/components/ui/button.json"
+    const calls: Array<[string, string | undefined]> = []
+    const get = async (name: string, _t: RegistryType, base?: string) => {
+      calls.push([name, base])
+      if (name === "hero") return component("hero", ["button", url])
+      if (name === "button" && !base) return component("button", ["utils"]) // brand button
+      if (name === url) return component("button", ["utils"]) // primitive button
+      if (name === "utils") return component(base ? "utils" : "utils")
+      return null
+    }
+    const resolved = await resolveRegistryTree(["hero"], TYPE, get)
+    expect(resolved.filter((c) => c.name === "button")).toHaveLength(2)
+    expect(calls).toContainEqual(["utils", undefined])
+    expect(calls).toContainEqual(["utils", "https://cdn.example.com/r/react"])
+    expect(resolved[resolved.length - 1]!.name).toBe("hero")
+  })
+})

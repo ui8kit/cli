@@ -9,7 +9,7 @@ import { checkProjectDependencies, showDependencyStatus } from "../utils/depende
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { installDependencies } from "../utils/package-manager.js"
 import { logger, Spinner } from "../utils/logger.js"
-import { normalizeDependencyName, resolveRegistryTree } from "../utils/dependency-resolver.js"
+import { normalizeDependencyName, resolveRegistryTreeDetailed } from "../utils/dependency-resolver.js"
 import { handleError, ConfigNotFoundError } from "../utils/errors.js"
 import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
 import { applyTransforms, shouldTransformFile } from "../utils/transform.js"
@@ -44,8 +44,14 @@ interface AddOptions {
 const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils", "registry:rules"]
 
 /** Options for fetching a single item by name: no catalog exclusions. */
-function fetchOptions<T extends { excludeTypes: string[] }>(requestOptions: T): T {
-  return { ...requestOptions, excludeTypes: [] }
+function fetchOptions<T extends { excludeTypes: string[]; cdn?: CdnResolutionOptions }>(requestOptions: T, registryBase?: string): T {
+  if (!registryBase) return { ...requestOptions, excludeTypes: [] }
+  // Bare-name deps of an item fetched by URL: that item's registry only (strict, no fallback).
+  return {
+    ...requestOptions,
+    excludeTypes: [],
+    cdn: { registryUrl: registryBase, strictCdn: true, runtime: requestOptions.cdn?.runtime },
+  }
 }
 
 /** Types installed as shared foundations: never overwritten when pulled in as a dependency. */
@@ -105,7 +111,7 @@ export async function addCommand(components: string[], options: AddOptions) {
 
     logger.info(CLI_MESSAGES.info.installing(registryType))
 
-    const getComponentFn = (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions))
+    const getComponentFn = (name: string, type: RegistryType, base?: string) => getComponent(name, type, fetchOptions(requestOptions, base))
 
     const results = await installRequestedComponents(
       selectedComponents,
@@ -165,7 +171,7 @@ async function addAllComponents(
         allComponents.map(c => c.name),
         registryType,
         config,
-        (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions)),
+        (name: string, type: RegistryType, base?: string) => getComponent(name, type, fetchOptions(requestOptions, base)),
         options,
         allComponents
       )
@@ -176,7 +182,7 @@ async function addAllComponents(
       allComponents.map(c => c.name),
       registryType,
       config,
-      (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions)),
+      (name: string, type: RegistryType, base?: string) => getComponent(name, type, fetchOptions(requestOptions, base)),
       options,
       allComponents
     )
@@ -200,7 +206,7 @@ async function processComponents(
   componentNames: string[],
   registryType: RegistryType,
   config: Config,
-  getComponentFn: (name: string, type: RegistryType) => Promise<Component | null>,
+  getComponentFn: (name: string, type: RegistryType, base?: string) => Promise<Component | null>,
   options: AddOptions,
   preloadedComponents?: Component[],
   totalCount?: number,
@@ -221,7 +227,10 @@ async function processComponents(
 
     try {
       const lookupName = componentName.toLowerCase()
-      let component: Component | null = componentMap?.get(lookupName) ?? null
+      // Index-aligned preloaded list first: two registries may ship items with the same name.
+      const aligned = preloadedComponents?.[i]
+      let component: Component | null =
+        (aligned && aligned.name === componentName ? aligned : null) ?? componentMap?.get(lookupName) ?? null
 
       if (!component) {
         component = await getComponentFn(componentName, registryType)
@@ -405,7 +414,7 @@ async function installRequestedComponents(
   componentNames: string[],
   registryType: RegistryType,
   config: Config,
-  getComponentFn: (name: string, type: RegistryType) => Promise<Component | null>,
+  getComponentFn: (name: string, type: RegistryType, base?: string) => Promise<Component | null>,
   options: AddOptions,
   preloadedComponents: Component[] = []
 ): Promise<Array<{ name: string; status: "success" | "error"; error?: string }>> {
@@ -414,25 +423,17 @@ async function installRequestedComponents(
     componentMap.set(component.name.toLowerCase(), component)
   }
 
-  const resolverGetComponent = async (name: string, type: RegistryType): Promise<Component | null> => {
-    const normalized = name.toLowerCase()
-    const cached = componentMap.get(normalized)
-    if (cached) {
-      return cached
+  const resolverGetComponent = async (name: string, type: RegistryType, base?: string): Promise<Component | null> => {
+    // Preloaded catalog entries belong to the active registry only.
+    if (!base) {
+      const cached = componentMap.get(name.toLowerCase())
+      if (cached) return cached
     }
-
-    const component = await getComponentFn(name, type)
-    if (!component) {
-      return null
-    }
-
-    componentMap.set(component.name.toLowerCase(), component)
-    return component
+    return getComponentFn(name, type, base)
   }
 
-  const orderedComponents = await resolveRegistryTree(componentNames, registryType, (name, type) =>
-    resolverGetComponent(name, type)
-  )
+  const resolved = await resolveRegistryTreeDetailed(componentNames, registryType, resolverGetComponent)
+  const orderedComponents = resolved.components
   if (options.dryRun && orderedComponents.length > 0) {
     logger.info("\n📦 Resolved registry dependency tree:")
     orderedComponents.forEach((component, index) => {
@@ -440,11 +441,8 @@ async function installRequestedComponents(
     })
   }
 
-  const orderedNames = new Set(orderedComponents.map(component => component.name.toLowerCase()))
   const normalizedRequested = Array.from(new Set(componentNames.map(name => name.toLowerCase())))
-  const missingRequested = normalizedRequested.filter(
-    name => !orderedNames.has(normalizeDependencyName(name)),
-  )
+  const missingRequested = Array.from(new Set(resolved.missing.map(name => name.toLowerCase())))
 
   const missingResults = missingRequested.map(name => ({
     name,

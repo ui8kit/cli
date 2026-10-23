@@ -56,6 +56,10 @@ export const registrySchema = z.object({
   $schema: z.string().optional(),
   /** Digest stamped into r/index.json `version` (defaults to 1.0.0). */
   version: z.string().optional(),
+  /** Registry name stamped into r/index.json `registry`. */
+  registry: z.string().optional(),
+  /** Free-form metadata copied into r/index.json (e.g. `primitives: { registry, version }`). */
+  meta: z.record(z.string(), z.any()).optional(),
   items: z.array(registryItemSchema),
 })
 

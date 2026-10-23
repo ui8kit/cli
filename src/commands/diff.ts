@@ -35,12 +35,15 @@ interface ComponentDiffSummary {
 export async function diffCommand(componentName?: string, options: DiffOptions = {}) {
   try {
     const registryType = resolveRegistryType(options.registry)
-    const cdnResolution: CdnResolutionOptions = {
-      registryUrl: options.registryUrl,
-      registryVersion: options.registryVersion,
-      strictCdn: options.strictCdn
-    }
     const config = await findConfig(registryType)
+    // Flags win over ui8kit.config.json (same resolution as `add`).
+    const cdnResolution: CdnResolutionOptions = {
+      registryUrl: options.registryUrl || config?.registryUrl,
+      registryVersion: options.registryVersion || config?.registryVersion,
+      strictCdn: options.strictCdn ?? config?.strictCdn,
+      cdnBaseUrls: config?.cdnBaseUrls,
+      runtime: config?.runtime,
+    }
     const defaultConfig: Config = config ?? {
       framework: "none",
       typescript: true,

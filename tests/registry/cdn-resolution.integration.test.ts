@@ -34,7 +34,18 @@ describe("CDN resolution integration", () => {
     const urls = getCdnUrls("ui")
     expect(urls[0]).toContain("unpkg.com")
     expect(urls[1]).toContain("cdn.jsdelivr.net")
-    expect(urls[2]).toContain("raw.githubusercontent.com")
+    expect(urls).toHaveLength(2)
+    expect(urls.some((u) => u.includes("raw.githubusercontent.com"))).toBe(false)
+  })
+
+  it("defaults to the CLI's major range instead of @latest", () => {
+    const urls = getCdnUrls("ui")
+    expect(urls[0]).toMatch(/@ui8kit\/registry@\d+\/r$/)
+    expect(urls.join()).not.toContain("@latest")
+    expect(getCdnUrls("ui", { registryVersion: "3.0.0" })[0]).toBe("https://unpkg.com/@ui8kit/registry@3.0.0/r")
+    expect(getCdnUrls("ui", { registryVersion: "canary", runtime: "react" })[1]).toBe(
+      "https://cdn.jsdelivr.net/npm/@ui8kit/registry@canary/r/react",
+    )
   })
 
   it("applies version overrides to explicit CDN URLs", async () => {

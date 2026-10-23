@@ -209,6 +209,21 @@ describe("build command", () => {
     expect((await readJson(path.join(outputDir, "index.json"))).version).toBe("3.0.0-local")
   })
 
+  it("copies top-level registry meta into index.json (brand primitives pin)", async () => {
+    await ensureDir(path.join(fixture, "src", "components", "ui"))
+    await writeFile(path.join(fixture, "src", "components", "ui", "button.tsx"), "export const Button = () => null\n")
+    const registryPath = path.join(fixture, "src", "registry.json")
+    const meta = { primitives: { registry: "@ui8kit/registry", version: "3.0.0" } }
+    await writeJson(registryPath, {
+      version: "1.0.0",
+      meta,
+      items: [{ name: "button", type: "registry:ui", files: [{ path: "src/components/ui/button.tsx" }] }],
+    })
+    const outputDir = path.join(fixture, "packages", "registry", "r")
+    await buildCommand(registryPath, { output: outputDir, cwd: fixture })
+    expect((await readJson(path.join(outputDir, "index.json"))).meta).toEqual(meta)
+  })
+
   it("resets cache before build", async () => {
     const clearSpy = vi.spyOn(cache, "clearCache").mockResolvedValue(undefined)
     const resetSpy = vi.spyOn(registryApi, "resetCache").mockImplementation(() => {})
