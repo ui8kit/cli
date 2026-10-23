@@ -79,6 +79,16 @@ function asFramework(value?: string): Framework {
   return "none"
 }
 
+/** Explicit --framework / --runtime values must be known (no silent fallback). */
+export function assertKnownInitOptions(options: { framework?: string; runtime?: string }): void {
+  if (options.framework && !(FRAMEWORKS as readonly string[]).includes(options.framework)) {
+    throw new Error(`Unknown --framework "${options.framework}". Valid: ${FRAMEWORKS.join(", ")}`)
+  }
+  if (options.runtime && !(RUNTIMES as readonly string[]).includes(options.runtime)) {
+    throw new Error(`Unknown --runtime "${options.runtime}". Valid: ${RUNTIMES.join(", ")}`)
+  }
+}
+
 function asRuntime(value?: string, framework?: Framework): Runtime | undefined {
   if (value && (RUNTIMES as readonly string[]).includes(value)) {
     return value as Runtime
@@ -125,6 +135,13 @@ export async function initCommand(options: InitOptions) {
     registryUrl: options.registryUrl,
     registryVersion: options.registryVersion,
     strictCdn: options.strictCdn,
+  }
+
+  try {
+    assertKnownInitOptions(options)
+  } catch (error) {
+    handleError(error)
+    return
   }
 
   logger.info(CLI_MESSAGES.info.initializing(registryName))

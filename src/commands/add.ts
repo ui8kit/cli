@@ -20,9 +20,9 @@ import {
   resolveInstallDir,
 } from "../utils/paths.js"
 import { ensureDir } from "../utils/project.js"
-import { applyPathOverrides } from "../utils/paths.js"
+import { applyPathOverrides, assertInsideRoot } from "../utils/paths.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
-import { filterFilesForRuntime } from "../utils/runtime-files.js"
+import { assertKnownRuntime, filterFilesForRuntime } from "../utils/runtime-files.js"
 
 interface AddOptions {
   force?: boolean
@@ -64,6 +64,10 @@ export async function addCommand(components: string[], options: AddOptions) {
       throw new ConfigNotFoundError(registryType)
     }
     const config = applyPathOverrides(loadedConfig, options.path)
+  assertKnownRuntime(options.runtime)
+  assertKnownRuntime(config.runtime, "config runtime")
+    assertKnownRuntime(options.runtime)
+    assertKnownRuntime(config.runtime, "config runtime")
 
     const cdnResolution: CdnResolutionOptions = {
       registryUrl: options.registryUrl || config.registryUrl,
@@ -507,7 +511,7 @@ async function installComponentFiles(
 ): Promise<void> {
   for (const file of component.files) {
     const relative = resolveFileInstallPath(file, component.type, config)
-    const targetPath = path.join(process.cwd(), relative)
+    const targetPath = assertInsideRoot(process.cwd(), relative)
     const fileName = path.basename(targetPath)
 
     if (!force && (await pathExists(targetPath))) {

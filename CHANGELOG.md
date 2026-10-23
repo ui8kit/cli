@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Runtime/framework `webcomponent`: `--runtime webcomponent` installs `*.wc.ts` + shared files (`*.wc.ts` stays excluded from react/solid/svelte/vue).
+
+### Fixed
+- **Security:** registry file targets/paths that are absolute or contain `..` are rejected, and every write is checked to stay inside the project directory.
+- Unknown `--runtime` (add/init) or `--framework` (init) now fails with an error instead of installing every runtime / silently falling back to `none`.
+- `init` "Next steps" and `add` examples no longer mention a non-existent `card` component.
+
 ## [2.0.4] - 2026-10-17
 
 ### Fixed
