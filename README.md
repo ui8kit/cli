@@ -63,7 +63,7 @@ npx ui8kit@3 add button
 - **templ**: generated code imports `github.com/ui8kit/codegen/generated/templ/utils`. With a `go.mod` in the app root the CLI rewrites it (in `*.templ` and `*.go`) to `<module>/<utils dir>`, e.g. `example.com/app/internal/utils`. Without `go.mod` the import is left as is and a warning prints the fix: `go mod init <module>` + `ui8kit add <items> --force`, or replace the import by hand. Then `templ generate && go build ./...`.
 - **twig / latte**: the CLI prints a PSR-4 snippet (`"UI8Kit\\Twig\\": "<dir>/runtime/"` / `UI8Kit\\Latte\\`) for your `composer.json`; it never edits `composer.json`. Run `composer dump-autoload`. Twig: `$twig->addExtension(new \UI8Kit\Twig\TwigExtension())`.
 - **jinja2**: `ui8kit_jinja/` sits next to `ui/`; `from ui8kit_jinja import environment` → `environment().get_template("ui/button/button.html.j2").render(p={...}, children=...)`.
-- `ui8kit check` works the same. Note: `templ generate` rewrites `*_templ.go` (e.g. source `FileName` paths), so `check` reports those files as `modified` afterwards; re-adopt with `check --adopt` or treat `*_templ.go` as build output.
+- `*_templ.go` is **generated**: registry ≥ 3.1 (rebuilt) ships only `*.templ`; run `templ generate` after every `add` (and in CI). `check` covers only files the CLI wrote, so generated `*_templ.go` never shows up as drift. Old installs that still have a locked `*_templ.go` will show it as `modified` after `templ generate` — remove those `*_templ.go` keys from `ui8kit.lock.json`, or delete the lock and run `ui8kit check --adopt` (re-creates it from files matching the registry).
 
 ## Config (`ui8kit.config.json`)
 

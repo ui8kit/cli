@@ -155,16 +155,6 @@ export async function initCommand(options: InitOptions) {
 
   logger.info(CLI_MESSAGES.info.initializing(registryName))
 
-  // Server runtimes (templ/latte/twig/jinja2) need no package.json: deps are go/composer/pip.
-  const serverRuntime = isServerRuntime(asRuntime(options.runtime, asFramework(options.framework || (await detectFrameworkHint()))))
-  if (!serverRuntime && !(await hasPackageJson())) {
-    logger.warn("No package.json found — creating minimal package.json for CLI tooling.")
-    await writeJson(
-      path.join(process.cwd(), "package.json"),
-      { name: path.basename(process.cwd()) || "app", private: true },
-      { spaces: 2 },
-    )
-  }
 
   const existingConfig = await findConfig(registryName)
   if (existingConfig && !options.yes) {
@@ -247,6 +237,17 @@ export async function initCommand(options: InitOptions) {
     })
   }
 
+  // Decided after the framework/runtime choice (flags or prompts). Server runtimes
+  // (templ/latte/twig/jinja2) never get a package.json: their deps are go/composer/pip.
+  if (!isServerRuntime(config.runtime) && !(await hasPackageJson())) {
+    logger.warn("No package.json found — creating minimal package.json for CLI tooling.")
+    await writeJson(
+      path.join(process.cwd(), "package.json"),
+      { name: path.basename(process.cwd()) || "app", private: true },
+      { spaces: 2 },
+    )
+  }
+
   const spinner = new Spinner(CLI_MESSAGES.info.initializing(registryName)).start()
 
   try {
@@ -259,6 +260,8 @@ export async function initCommand(options: InitOptions) {
       spinner.text = "Installing core utils from registry (best-effort)..."
       ;({ written, components: coreComponents } = await installCoreFiles(registryName as RegistryType, config, spinner, {
         ...cdnOptions,
+        // Interactive answers (registry URL prompt) live in config, not in the CLI options.
+        registryUrl: config.registryUrl || cdnOptions.registryUrl,
         cdnBaseUrls: config.cdnBaseUrls,
         runtime: config.runtime,
       }))

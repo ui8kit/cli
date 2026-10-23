@@ -150,3 +150,20 @@ describe("templ go import", () => {
     expect(w).toContain("<module>/internal/utils")
   })
 })
+
+describe("interactive init (no --yes)", () => {
+  it("decides package.json after the framework prompt: server runtime → none, react → created", async () => {
+    const prompts = (await import("prompts")).default
+    prompts.inject(["twig", "templates", "templates/app.css", `${server.url}/twig`, "alias"])
+    await initCommand({ strictCdn: true })
+    const config = JSON.parse(fs.readFileSync(path.join(project, "ui8kit.config.json"), "utf-8"))
+    expect(config.runtime).toBe("twig")
+    expect(fs.existsSync(path.join(project, "package.json"))).toBe(false)
+    expect(fs.existsSync(path.join(project, "templates/runtime/Rt.php"))).toBe(true)
+
+    fs.rmSync(path.join(project, "ui8kit.config.json"))
+    prompts.inject(["react", "src", "src/index.css", "", "alias"])
+    await initCommand({ skipCore: true })
+    expect(fs.existsSync(path.join(project, "package.json"))).toBe(true)
+  })
+})

@@ -35,6 +35,7 @@ Update `CHANGELOG.md`, README / `docs/` when behavior changes. CI runs Linux (No
   - no `package.json` is created or required; item npm `dependencies` are never npm-installed for them;
   - go/composer/pip deps come from item `meta` (`meta.go.require`, `meta.composer.require`, `meta.python.requirements`) and are only **printed** (once, deduped). Never run them on the user's behalf unless asked;
   - templ: `github.com/ui8kit/codegen/generated/templ/utils` is rewritten to `<go.mod module>/<utils dir>` at plan time (so lock/check hashes include it); no go.mod → warning with manual fix;
+  - templ: `*_templ.go` is build output of `templ generate` (not shipped by the registry); tell users to run it after `add`;
   - twig/latte: PSR-4 snippet printed from `meta.composer.autoload` (`<dir>` substituted); `composer.json` is never modified.
 - `--import-style package` is deprecated (warns).
 
