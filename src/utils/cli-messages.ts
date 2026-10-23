@@ -1,3 +1,4 @@
+import { registryMajorSuffix } from "./schema-config.js"
 // Centralized CLI messages and user-facing strings
 export const CLI_MESSAGES = {
   // Error messages
@@ -97,7 +98,7 @@ export const CLI_MESSAGES = {
       "Use --retry flag: npx ui8kit@3 add --all --retry",
       "Use VPN if available",
       "Install from URL: npx ui8kit@3 add 'https://...'",
-      "Browse items: https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/<runtime>/index.json"
+      `Browse items: https://cdn.jsdelivr.net/npm/@ui8kit/registry${registryMajorSuffix()}/r/<runtime>/index.json`
     ]
   },
 

@@ -227,6 +227,14 @@ Global: `-c, --cwd <dir>`, `-v, --verbose`, `--no-cache`, `-V, --version`.
   - `rules/rules.json` — `registry:rules` → `.cursor/rules/ui8kit-primitives.mdc` (installed by `init`)
 - **`$schema`**: `https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/{schema,registry,registry-item}.json` (config / index / item).
 - **Version**: `--registry-version` or `"registryVersion"` in `ui8kit.config.json` accepts exact (`3.1.0`), range (`3.1`) or dist-tag (`canary`); default is the CLI major (`3` → newest 3.x.y).
+
+### Version with a custom `--registry-url`
+
+`--registry-version` / `registryVersion` rewrites an npm-style `name@<version>` segment of a custom URL (`…/@ui8kit/registry@latest/r/react`, `…/my-kit@2/r`, `…@3.1.0/…`). A URL without such a segment (brand domain, self-hosted path like `https://kit.example.com/v3/r/react`) is used unchanged and the CLI warns that `--registry-version` is ignored: version those registries through their own path.
+
+### `slot` is React-only
+
+`slot` (Slot / `asChild`) exists only in `r/react`; React bricks pull it in via `registryDependencies`. Other runtimes compose with their native mechanism (slots/children), so `add slot --runtime vue` (or any non-React runtime) prints a clear "React-only" error and skips it.
 - **Resolution order**: `--registry-url` / `registryUrl` → `cdnBaseUrls` (config) → built-in unpkg / jsDelivr. With `--strict-cdn` (or `strictCdn`) and an explicit URL, only that URL is used.
 - **Brand registries**: `@ui8kit/registry` ships **primitives only**. Brand kits (blocks, composites) host their own registry, e.g. `--registry-url https://registry.buildy.tw/react`, and reference primitives by absolute URL in `registryDependencies` (pinned digest, recorded in `meta.primitives`). Brand items get their own lock entries.
 - **Lock**: `init` / `add` write `ui8kit.lock.json` (source URL, exact version, sha256 per file). Commit it; verify with `npx ui8kit@3 check` (offline, exit 1 on `missing` / `modified` / `mixed-versions` / `rules-version`). No lock yet → `npx ui8kit@3 check --adopt` once.

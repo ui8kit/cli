@@ -3,6 +3,7 @@ import {
   CANONICAL_PATHS,
   TYPE_TO_FOLDER,
   TYPE_TO_PATH_KEY,
+  buildDefaultAliases,
   type ComponentType,
   type PathKey,
 } from "./schema-config.js"
@@ -250,19 +251,5 @@ export function inferTargetFromType(componentType: string): string {
 }
 
 export function defaultAliasesForDir(dir: string): Record<string, string> {
-  const d = normalizeDir(dir)
-  const prefix = d === "src" ? "@" : `@/${d.replace(/^web\//, "web/")}`
-  // Keep simple @/ aliases pointing at dir
-  return {
-    "@": `./${d}`,
-    "@/lib": `./${d}/lib`,
-    "@/utils": `./${d}/utils`,
-    "@/components": `./${d}/components`,
-    "@/ui": `./${d}/components/ui`,
-    "@/blocks": `./${d}/blocks`,
-    "@/layouts": `./${d}/layouts`,
-    "@/variants": `./${d}/variants`,
-    "@/widgets": `./${d}/widgets`,
-    ...(prefix !== "@" ? {} : {}),
-  }
+  return buildDefaultAliases(normalizeDir(dir))
 }

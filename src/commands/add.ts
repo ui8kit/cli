@@ -63,6 +63,22 @@ const SHARED_FOUNDATION_TYPES = new Set(["registry:utils", "registry:lib"])
 
 export { inferTargetFromType, resolveInstallDir }
 
+/** Items that exist only in `r/react` (React Slot / `asChild`). */
+export const REACT_ONLY_ITEMS = new Set(["slot"])
+
+/** Drop React-only items for a non-React runtime, with a clear message (no silent "not found"). */
+export function dropReactOnlyItems(names: string[], runtime?: string): string[] {
+  if (!runtime || runtime === "react") return names
+  return names.filter((name) => {
+    if (!REACT_ONLY_ITEMS.has(name.trim().toLowerCase())) return true
+    logger.error(
+      `"${name}" is React-only (Slot / asChild, shipped only in r/react); runtime "${runtime}" has no ${name} item. ` +
+        `Composition in ${runtime} uses its native mechanism (slots/children); use --runtime react for Slot.`,
+    )
+    return false
+  })
+}
+
 export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
 
@@ -95,8 +111,13 @@ export async function addCommand(components: string[], options: AddOptions) {
       return
     }
 
-    const selectedComponents =
+    const requested =
       components.length > 0 ? components : await pickComponentsFromPrompt(registryType, requestOptions)
+    const selectedComponents = dropReactOnlyItems(requested, cdnResolution.runtime)
+    if (requested.length > 0 && selectedComponents.length === 0) {
+      process.exitCode = 1
+      return
+    }
 
     if (selectedComponents.length === 0) {
       logger.warn(CLI_MESSAGES.errors.noComponentsSpecified)

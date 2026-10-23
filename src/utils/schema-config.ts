@@ -1,4 +1,5 @@
 import { getCliVersion } from "./cli-version.js"
+import { logger } from "./logger.js"
 // Universal UI8Kit CLI configuration — contracts, not frameworks.
 
 export const FRAMEWORKS = [
@@ -91,10 +92,48 @@ export const TYPE_TO_PATH_KEY: Partial<Record<ComponentType, PathKey>> = {
   "registry:widget": "widgets",
 }
 
+/**
+ * Default install folders under `dir`. Same as CANONICAL_PATHS (registry folder
+ * layout) except `ui`: registry 3.x items target `ui/<name>/…`, so `add` writes
+ * `{dir}/ui/…` and `@/ui` must point there.
+ */
+export const DEFAULT_INSTALL_FOLDERS: Record<PathKey, string> = {
+  ...CANONICAL_PATHS,
+  ui: "ui",
+}
+
+/** Default install root (`init --dir` default). */
+const DEFAULT_DIR = "src"
+
+/**
+ * Directories under `dir` derived from DEFAULT_INSTALL_FOLDERS (single source for
+ * `init`, schema defaults and fallbacks), e.g. `{ ui: "./src/ui", … }`.
+ */
+export function buildDefaultDirectories(dir: string = DEFAULT_DIR): Record<"dir" | PathKey, string> {
+  const d = dir.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "")
+  const out = { dir: `./${d}` } as Record<"dir" | PathKey, string>
+  for (const [key, folder] of Object.entries(DEFAULT_INSTALL_FOLDERS) as Array<[PathKey, string]>) {
+    out[key] = `./${d}/${folder}`
+  }
+  return out
+}
+
+/** `@` aliases derived from DEFAULT_INSTALL_FOLDERS (`@/ui` → `./src/ui`). */
+export function buildDefaultAliases(dir: string = DEFAULT_DIR): Record<string, string> {
+  const dirs = buildDefaultDirectories(dir)
+  const out: Record<string, string> = { "@": dirs.dir }
+  for (const key of Object.keys(DEFAULT_INSTALL_FOLDERS) as PathKey[]) {
+    out[`@/${key}`] = dirs[key]
+  }
+  return out
+}
+
 export const SCHEMA_CONFIG = {
   schemaVersion: "http://json-schema.org/draft-07/schema#",
-  /** JSON Schemas shipped by @ui8kit/registry (same major as the CLI). */
-  baseUrl: "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema",
+  /** JSON Schemas shipped by @ui8kit/registry (same major as the CLI, from package.json). */
+  get baseUrl(): string {
+    return `https://cdn.jsdelivr.net/npm/@ui8kit/registry${registryMajorSuffix()}/schema`
+  },
   cliContractVersion: "2.0.0",
 
   supportedFrameworks: FRAMEWORKS,
@@ -102,20 +141,10 @@ export const SCHEMA_CONFIG = {
   componentTypes: COMPONENT_TYPES,
 
   defaultFramework: "none" as Framework,
-  defaultDir: "src",
+  defaultDir: DEFAULT_DIR,
   defaultGlobalCss: "src/index.css",
 
-  defaultAliases: {
-    "@": "./src",
-    "@/lib": "./src/lib",
-    "@/utils": "./src/utils",
-    "@/components": "./src/components",
-    "@/ui": "./src/components/ui",
-    "@/blocks": "./src/blocks",
-    "@/layouts": "./src/layouts",
-    "@/variants": "./src/variants",
-    "@/widgets": "./src/widgets",
-  } as Record<string, string>,
+  defaultAliases: buildDefaultAliases() as Record<string, string>,
 
   defaultRegistry: "@ui8kit",
   registryTypes: ["ui"] as const,
@@ -143,17 +172,7 @@ export const SCHEMA_CONFIG = {
     "widgets",
   ] as const,
 
-  defaultDirectories: {
-    dir: "./src",
-    lib: "./src/lib",
-    utils: "./src/utils",
-    components: "./src/components",
-    ui: "./src/components/ui",
-    blocks: "./src/blocks",
-    layouts: "./src/layouts",
-    variants: "./src/variants",
-    widgets: "./src/widgets",
-  } as const,
+  defaultDirectories: buildDefaultDirectories(),
 
   descriptions: {
     config: {
@@ -226,6 +245,12 @@ export interface CdnResolutionOptions {
   runtime?: string
 }
 
+/** `@<cli major>` (e.g. `@3`), or `@latest` when the CLI version is unknown/0.x. */
+export function registryMajorSuffix(): string {
+  const major = getCliMajor()
+  return major ? `@${major}` : "@latest"
+}
+
 /** Major of the running CLI (`3.0.1` → `3`), from its own package.json. */
 export function getCliMajor(): string {
   const m = getCliVersion().match(/^(\d+)\./)
@@ -268,6 +293,44 @@ function applyRegistryVersion(baseUrl: string, version?: string): string {
   return baseUrl.replace(/@latest(?=\/|$)/g, normalizedVersion)
 }
 
+/**
+ * npm-style package segment with a version in a URL path:
+ * `/@scope/name@<version>` or `/name@<version>` (dist-tag, range or exact).
+ */
+const NPM_VERSION_SEGMENT = /(\/(?:@[^/@]+\/)?[^/@]+)@([^/]+)(?=\/|$)/
+
+/** True when `url` has an npm-style `name@<version>` segment `--registry-version` can rewrite. */
+export function hasNpmVersionSegment(url: string): boolean {
+  return NPM_VERSION_SEGMENT.test(url)
+}
+
+const warnedIgnoredVersion = new Set<string>()
+
+/**
+ * Explicit `registryUrl` + version:
+ *  - URL has an npm-style `@<version>` segment → that segment is replaced
+ *    (explicit version), or `@latest` → effective version (CLI major);
+ *  - otherwise the URL is used as-is and an explicit version is ignored with a warning
+ *    (brand/self-hosted domains version through their own paths).
+ */
+function applyVersionToExplicitUrl(url: string, explicitVersion: string | undefined, effective?: string): string {
+  const explicit = normalizeCdnVersion(explicitVersion)
+  if (explicit) {
+    if (hasNpmVersionSegment(url)) {
+      return url.replace(NPM_VERSION_SEGMENT, (_m, pkg: string) => `${pkg}${explicit}`)
+    }
+    if (!warnedIgnoredVersion.has(url)) {
+      warnedIgnoredVersion.add(url)
+      logger.warn(
+        `--registry-version ${explicitVersion!.trim()} ignored for ${url}: the URL has no npm-style "@<version>" segment ` +
+          `(version it through its own path, e.g. .../@ui8kit/registry@3/r/<runtime>)`,
+      )
+    }
+    return url
+  }
+  return applyRegistryVersion(url, effective)
+}
+
 function normalizeCdnBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, "")
 }
@@ -293,7 +356,7 @@ export function getCdnUrls(_registryType: RegistryType, options: CdnResolutionOp
   const resolved: string[] = []
   const explicitUrl = options.registryUrl
     ? normalizeCdnBaseUrl(
-        applyRegistryVersion(normalizeCdnBaseUrl(options.registryUrl), version),
+        applyVersionToExplicitUrl(normalizeCdnBaseUrl(options.registryUrl), options.registryVersion, version),
       )
     : ""
 

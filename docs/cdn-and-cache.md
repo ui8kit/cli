@@ -57,7 +57,7 @@ The `@latest` placeholder in URL templates is rewritten:
 …/@ui8kit/registry@latest/r  →  …/@ui8kit/registry@3.0.0/r/react  (--registry-version 3.0.0)
 ```
 
-Custom hosts without `@latest` are left unchanged; pin by changing the path yourself or hosting immutable digests.
+With an explicit `--registry-version`, a custom `--registry-url` that has an npm-style `name@<version>` segment (tag, range or exact) gets that segment replaced. Custom hosts without such a segment are left unchanged and the CLI warns that `--registry-version` is ignored; pin by changing the path yourself or hosting immutable digests.
 
 ## Inspect resolution
 
