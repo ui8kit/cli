@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [3.1.1] - 2026-10-23
+
+### Changed
+- `ui8kit.lock.json` **lockVersion 2**: item key = registry identity + runtime + name, independent of CDN host and version. unpkg / jsDelivr npm URLs → `npm:<package>` (`npm:@ui8kit/registry|react|button`); other hosts → `host/path` without version segments (brand registries stay separate). `source` (URL used) and exact `version` remain fields. A CDN fallback no longer creates a second entry.
+- `check` groups mixed versions / rules drift by registry identity.
+- lockVersion 1 files are migrated on read (re-keyed, duplicates keep the newest version) and written as v2.
+
+### Docs
+- README: developer section (lock, `check` in CI, `check --adopt`, error meanings and fixes, CRLF, version pinning, brand registries + `meta.primitives`, primitives are not forked). AGENTS.md: rules for agents working in ui8kit apps.
+
 ## [3.1.0] - 2026-10-23
 
 ### Added

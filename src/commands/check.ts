@@ -12,6 +12,7 @@ import {
   updateLock,
   type LockEntryInput,
   type LockFile,
+  registryIdentity,
 } from "../utils/lock.js"
 import { SCHEMA_CONFIG, getCdnUrls, type CdnResolutionOptions } from "../utils/schema-config.js"
 import { logger } from "../utils/logger.js"
@@ -82,9 +83,10 @@ export async function analyzeLock(
   for (const key of keys) {
     const item = lock.items[key]!
     if (!PRIMITIVE_TYPES.has(item.type) || !item.version) continue
-    const versions = bySource.get(item.source) ?? new Map<string, string[]>()
+    const id = registryIdentity(item.source).identity
+    const versions = bySource.get(id) ?? new Map<string, string[]>()
     versions.set(item.version, [...(versions.get(item.version) ?? []), item.name])
-    bySource.set(item.source, versions)
+    bySource.set(id, versions)
   }
   for (const [source, versions] of [...bySource].sort(([a], [b]) => a.localeCompare(b))) {
     if (versions.size < 2) continue
@@ -97,7 +99,8 @@ export async function analyzeLock(
     const rules = lock.items[key]!
     if (rules.type !== "registry:rules" || !rules.version) continue
     const prims = keys.map((k) => lock.items[k]!).filter((i) => PRIMITIVE_TYPES.has(i.type) && i.version)
-    let peers = prims.filter((i) => i.source === rules.source)
+    const rulesId = registryIdentity(rules.source).identity
+    let peers = prims.filter((i) => registryIdentity(i.source).identity === rulesId)
     if (peers.length === 0) peers = prims.filter((i) => i.runtime === rules.runtime)
     const other = [...new Set(peers.map((i) => i.version!).filter((v) => v !== rules.version))].sort()
     if (other.length > 0) {

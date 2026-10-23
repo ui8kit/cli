@@ -1,6 +1,6 @@
 {
   "name": "ui8kit",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "CLI to install and maintain UI8Kit primitives registries (per-runtime: React, Vue, Svelte, Solid, Web Components; legacy 2.0 digest: Templ, Twig, Latte, Jinja2; file-based)",
   "type": "module",
   "bin": {

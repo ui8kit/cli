@@ -75,14 +75,43 @@ CDN order: `--registry-url` / `registryUrl` → `cdnBaseUrls` → built-in unpkg
 
 `--import-style package` (`@ui8kit/core` imports) is **deprecated**: it still works but prints a warning.
 
-## Lock and `check`
+## For app developers: lock, `check`, versions
 
-`init` and `add` write **`ui8kit.lock.json`** (source registry, exact version, sha256 per installed file). Commit it and run in CI:
+### `ui8kit.lock.json`
+
+`init` and `add` record every installed file in `ui8kit.lock.json`: the registry it came from (`source`, the URL actually used), the **exact** version (`3.0.0`, never a range) and a sha256 per file. **Commit it** — it is how you (and CI) know the kit on disk is exactly what the registry shipped. Do not edit it by hand.
 
 ```bash
-npx ui8kit@3 check            # offline; exit 1 on missing/modified files, mixed versions, rules drift
-npx ui8kit@3 check --adopt    # existing install without a lock: adopt files that match the registry
+npx ui8kit@3 check            # offline, no network; exit 1 on errors
+npx ui8kit@3 check --json     # machine-readable report
 ```
+
+Add `npx ui8kit@3 check` to CI (see [CI scenario](./docs/scenarios/ci-and-upgrades.md)). Existing app installed before 3.1 (no lock): run `npx ui8kit@3 check --adopt` once — it fetches the registry, hashes what each item would install and adopts **only files that match**; others are listed as `not-adopted` (decide: re-install with `add <name> --force`, or keep as your own file). Commit the lock.
+
+| `check` error | Meaning | Fix |
+|---------------|---------|-----|
+| `missing` | a locked file was deleted | `npx ui8kit@3 add <name> --force` |
+| `modified` | file content differs from what was installed — a local edit, **or** `aliases` / `importStyle` / `paths` changed after install (import rewrites change content) | revert the edit (`add <name> --force`) and move styling to `className` / tokens; after a deliberate config change re-install the items with `--force` |
+| `mixed-versions` | primitives from one registry are on different versions (e.g. `button` 3.0.0, `text` 3.1.0) | `npx ui8kit@3 add <outdated…> --force` (or `add --all --force`) so all share one version |
+| `rules-version` | `.cursor/rules/ui8kit-primitives.mdc` is from another version than the primitives | re-run `npx ui8kit@3 init` with your flags (refreshes utils + rules), or bring the primitives to the rules version |
+
+Line endings: hashes are computed with CRLF normalized to LF, so `git config core.autocrlf true` on Windows is **not** reported as `modified`.
+
+### Registry version
+
+The default registry is the **CLI major** (`ui8kit@3` → `@ui8kit/registry@3`, newest 3.x.y). To make installs reproducible, pin an exact digest: `"registryVersion": "3.0.0"` in `ui8kit.config.json` (or `--registry-version 3.0.0`). Upgrade deliberately: change the pin, `add --all --force`, `init` (rules), `check`, commit.
+
+### Brand registries
+
+A brand registry (e.g. `https://registry.buildy.tw/react`) ships blocks / composites that **depend on** the primitives by URL (`registryDependencies: ["https://cdn.jsdelivr.net/npm/@ui8kit/registry@3.0.0/r/react/components/ui/button.json"]`) and records the digest it was built against in `registry.json` top-level `meta` (copied to `index.json`):
+
+```json
+{ "meta": { "primitives": { "registry": "@ui8kit/registry", "version": "3.0.0" } } }
+```
+
+Brand items get their own lock entries (key per registry identity), separate from `@ui8kit/registry`.
+
+**Primitives are not forked.** Do not edit files under your kit folder (`{dir}/ui`, `{dir}/utils`) — `check` reports it, and `add --force` would overwrite it. Brand styling goes through `className` on the primitives and design tokens (CSS variables / Tailwind theme); new UI goes into your own components or a brand registry.
 
 ## Commands
 

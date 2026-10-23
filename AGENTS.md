@@ -40,3 +40,23 @@ Update `CHANGELOG.md`, README / `docs/` when behavior changes. CI runs Linux (No
 2. The `--runtime` multi-file filter is for `registry:ui` primitives; publish other item types single-stack.
 3. No heavy deps (chalk, ora, fs-extra, glob, TypeScript at runtime) without an explicit decision.
 4. No secrets in the repo.
+
+## Working in an app that uses ui8kit (agents)
+
+Consumer projects have `ui8kit.config.json` and a committed `ui8kit.lock.json`.
+
+1. **Never edit files listed in `ui8kit.lock.json`** (kit folder `{dir}/ui/…`, `{dir}/utils/…`, `.cursor/rules/ui8kit-primitives.mdc`). Primitives are not forked.
+2. **Style via `className` and tokens** (CSS variables, Tailwind theme). Put new UI in the app's own components, not in the kit folder.
+3. **After `ui8kit add` (or `init`), run `npx ui8kit@3 check`** and fix errors before finishing.
+4. **Do not hand-edit `ui8kit.lock.json`.** It is written by `init` / `add` / `check --adopt`.
+5. **Never switch the registry version silently** (`registryVersion`, `--registry-version`, `registryUrl`). Changing it is a user decision; propose it and say why.
+
+Resolving `check` errors:
+
+| Error | Do |
+|-------|----|
+| `no-lock` | existing install: `npx ui8kit@3 check --adopt`, report `not-adopted` files to the user |
+| `missing` | `npx ui8kit@3 add <name> --force` |
+| `modified` | revert with `add <name> --force` and re-apply the change via `className` / tokens. If `aliases` / `importStyle` / `paths` changed on purpose, re-install the affected items with `--force` |
+| `mixed-versions` | `npx ui8kit@3 add <outdated items> --force` at the current registry version, not a new one |
+| `rules-version` | re-run `npx ui8kit@3 init` with the project's flags (rules + utils), or align the primitives; ask before changing the version |

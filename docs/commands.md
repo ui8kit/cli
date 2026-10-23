@@ -149,10 +149,10 @@ Written by `init` (utils, rules) and `add`; merged on every run, sorted, determi
 
 ```json
 {
-  "lockVersion": 1,
-  "cli": "3.1.0",
+  "lockVersion": 2,
+  "cli": "3.1.1",
   "items": {
-    "https://unpkg.com/@ui8kit/registry@3/r/react|button": {
+    "npm:@ui8kit/registry|react|button": {
       "name": "button",
       "type": "registry:ui",
       "source": "https://unpkg.com/@ui8kit/registry@3/r/react",
@@ -164,6 +164,7 @@ Written by `init` (utils, rules) and `add`; merged on every run, sorted, determi
 }
 ```
 
+- Item key = `<registry identity>|<runtime>|<name>`. unpkg / jsDelivr npm URLs → `npm:<package>` (so a CDN fallback does not create a second entry); other hosts → `host/path` without version segments (brand registries stay separate). `source` keeps the URL actually used. lockVersion 1 files are migrated on read (re-keyed, duplicates keep the newest version) and written as v2.
 - `version` is exact: item `digest`, else the registry index `version`; never a range like `3`.
 - `files`: posix paths relative to the project root → sha256 of the written content (after import transforms / rules substitution; CRLF is normalized to LF, so `git autocrlf` is not an edit).
 - Files that `add` skipped because they already existed are recorded only if their content equals the registry content.

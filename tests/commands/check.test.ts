@@ -10,7 +10,7 @@ import { addCommand } from "../../src/commands/add.js"
 import { analyzeLock, runCheck } from "../../src/commands/check.js"
 import { resetCache } from "../../src/registry/api.js"
 import { logger } from "../../src/utils/logger.js"
-import { LOCK_FILE, exactVersion, hashContent, serializeLock, type LockFile } from "../../src/utils/lock.js"
+import { LOCK_FILE, exactVersion, hashContent, lockKey, migrateLock, readLock, registryIdentity, serializeLock, updateLock, type LockFile } from "../../src/utils/lock.js"
 
 let registryDir = ""
 let server: { url: string; close: () => Promise<void> }
@@ -60,16 +60,17 @@ afterEach(() => {
 const readLockJson = (): LockFile => JSON.parse(fs.readFileSync(path.join(project, LOCK_FILE), "utf-8"))
 
 describe("ui8kit.lock.json + check", () => {
-  it("add writes a sorted lock keyed base|name with posix paths and sha256 hashes", async () => {
+  it("add writes a sorted lock keyed identity|runtime|name with posix paths and sha256 hashes", async () => {
     await addCommand(["button"], { force: true, cache: false })
     const lock = readLockJson()
-    expect(lock.lockVersion).toBe(1)
+    expect(lock.lockVersion).toBe(2)
     expect(typeof lock.cli).toBe("string")
     const keys = Object.keys(lock.items)
     expect(keys).toEqual([...keys].sort())
     const base = `${server.url}/react`
-    expect(keys).toContain(`${base}|button`)
-    const button = lock.items[`${base}|button`]!
+    const key = `${new URL(server.url).host}|react|button`
+    expect(keys).toContain(key)
+    const button = lock.items[key]!
     expect(button).toMatchObject({ name: "button", source: base, version: null })
     for (const [rel, hash] of Object.entries(button.files)) {
       expect(rel).not.toContain("\\")
@@ -168,3 +169,53 @@ describe("lock helpers", () => {
     expect(report.ok).toBe(false)
   })
 })
+
+describe("lock keys (lockVersion 2)", () => {
+  const files = [{ rel: "src\\ui\\button\\button.tsx", content: "x\n" }]
+
+  it("identity ignores CDN host and version", () => {
+    expect(registryIdentity("https://unpkg.com/@ui8kit/registry@3/r/react")).toEqual({ identity: "npm:@ui8kit/registry", runtime: "react" })
+    expect(registryIdentity("https://cdn.jsdelivr.net/npm/@ui8kit/registry@3.0.0/r/react/")).toEqual({ identity: "npm:@ui8kit/registry", runtime: "react" })
+    expect(registryIdentity("https://Registry.Buildy.tw/v2/solid")).toEqual({ identity: "registry.buildy.tw", runtime: "solid" })
+    expect(registryIdentity("https://cdn.example.com/brand@1.2.0/r")).toEqual({ identity: "cdn.example.com/brand/r" })
+  })
+
+  it("unpkg then jsDelivr fallback → one entry (posix paths)", async () => {
+    await updateLock([{ name: "button", type: "registry:ui", source: "https://unpkg.com/@ui8kit/registry@3/r/react", version: "3.0.0", runtime: "react", files }], project)
+    await updateLock([{ name: "button", type: "registry:ui", source: "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/react", version: "3.0.1", runtime: "react", files }], project)
+    const lock = (await readLock(project))!
+    expect(Object.keys(lock.items)).toEqual(["npm:@ui8kit/registry|react|button"])
+    const item = lock.items["npm:@ui8kit/registry|react|button"]!
+    expect(item.source).toBe("https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/react")
+    expect(item.version).toBe("3.0.1")
+    expect(Object.keys(item.files)).toEqual(["src/ui/button/button.tsx"])
+  })
+
+  it("brand host stays separate from primitives", async () => {
+    await updateLock([
+      { name: "button", type: "registry:ui", source: "https://unpkg.com/@ui8kit/registry@3/r/react", version: "3.0.0", runtime: "react", files },
+      { name: "button", type: "registry:block", source: "https://registry.buildy.tw/react", version: "1.0.0", runtime: "react", files: [{ rel: "src/blocks/button.tsx", content: "y" }] },
+    ], project)
+    expect(Object.keys((await readLock(project))!.items)).toEqual(["npm:@ui8kit/registry|react|button", "registry.buildy.tw|react|button"])
+  })
+
+  it("migrates lockVersion 1 (rekey, dedupe keeping newest) and writes v2", async () => {
+    const v1 = {
+      lockVersion: 1,
+      cli: "3.1.0",
+      items: {
+        "https://unpkg.com/@ui8kit/registry@3/r/react|button": { name: "button", type: "registry:ui", source: "https://unpkg.com/@ui8kit/registry@3/r/react", version: "3.0.1", runtime: "react", files: { "src/ui/button/button.tsx": "a" } },
+        "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/react|button": { name: "button", type: "registry:ui", source: "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/react", version: "3.0.0", runtime: "react", files: { "src/ui/button/button.tsx": "b" } },
+      },
+    }
+    expect(Object.values(migrateLock(v1 as LockFile).items).map((i) => i.version)).toEqual(["3.0.1"])
+    fs.writeFileSync(path.join(project, LOCK_FILE), JSON.stringify(v1))
+    await updateLock([{ name: "text", type: "registry:ui", source: "https://unpkg.com/@ui8kit/registry@3/r/react", version: "3.0.1", runtime: "react", files: [{ rel: "src/ui/text/text.tsx", content: "t" }] }], project)
+    const written = readLockJson()
+    expect(written.lockVersion).toBe(2)
+    expect(Object.keys(written.items)).toEqual(["npm:@ui8kit/registry|react|button", "npm:@ui8kit/registry|react|text"])
+    expect(written.items["npm:@ui8kit/registry|react|button"]!.files["src/ui/button/button.tsx"]).toBe("a")
+    expect(lockKey("https://unpkg.com/@ui8kit/registry@3/r", "utils", "vue")).toBe("npm:@ui8kit/registry|vue|utils")
+  })
+})
+
