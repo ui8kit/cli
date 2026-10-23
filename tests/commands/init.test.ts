@@ -60,7 +60,7 @@ describe("init without vite/react", () => {
     await remove(fixture)
   })
 
-  it("initializes kit folders for templ/internal", async () => {
+  it("writes only the config for templ/internal with --skip-core (no empty folders)", async () => {
     await initCommand({
       yes: true,
       framework: "templ",
@@ -72,8 +72,6 @@ describe("init without vite/react", () => {
     const config = await readJson(path.join(fixture, "ui8kit.config.json"))
     expect(config.framework).toBe("templ")
     expect(config.dir).toBe("internal")
-    expect(await pathExists(path.join(fixture, "internal/components/ui"))).toBe(true)
-    expect(await pathExists(path.join(fixture, "internal/utils"))).toBe(true)
-    expect(await pathExists(path.join(fixture, "internal/lib"))).toBe(true)
+    expect(await pathExists(path.join(fixture, "internal"))).toBe(false)
   })
 })

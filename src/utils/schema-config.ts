@@ -40,6 +40,7 @@ export const COMPONENT_TYPES = [
   "registry:layout",
   "registry:variants",
   "registry:widget",
+  "registry:rules",
 ] as const
 
 export type ComponentType = (typeof COMPONENT_TYPES)[number]
@@ -72,9 +73,12 @@ export const TYPE_TO_FOLDER: Record<ComponentType, string> = {
   "registry:layout": CANONICAL_PATHS.layouts,
   "registry:variants": CANONICAL_PATHS.variants,
   "registry:widget": CANONICAL_PATHS.widgets,
+  /** Agent rules: registry folder `rules/`; installed by `init` under the app root (`.cursor/rules/`). */
+  "registry:rules": "rules",
 }
 
-export const TYPE_TO_PATH_KEY: Record<ComponentType, PathKey> = {
+/** `registry:rules` has no install folder under `dir` (see `init`). */
+export const TYPE_TO_PATH_KEY: Partial<Record<ComponentType, PathKey>> = {
   "registry:lib": "lib",
   "registry:utils": "utils",
   "registry:ui": "ui",
@@ -210,6 +214,19 @@ export interface CdnResolutionOptions {
   strictCdn?: boolean
   /** Project-level CDN list; when set, replaces SCHEMA_CONFIG.cdnBaseUrls */
   cdnBaseUrls?: string[]
+  /**
+   * Runtime of the project. Registry digests >= 3.0.0 are published per
+   * runtime (`r/<runtime>/`), so the default CDN bases get `/<runtime>`
+   * appended when `registryVersion` is 3+. An explicit `registryUrl` is used
+   * as-is (point it at the runtime folder).
+   */
+  runtime?: string
+}
+
+/** Registry digests >= 3 publish one registry per runtime under `r/<runtime>/`. */
+export function isPerRuntimeRegistryVersion(version?: string): boolean {
+  const m = version?.trim().replace(/^@/, "").match(/^(\d+)\./)
+  return Boolean(m && Number(m[1]) >= 3)
 }
 
 function normalizeCdnVersion(version?: string): string {
@@ -238,7 +255,13 @@ export function getCdnUrls(_registryType: RegistryType, options: CdnResolutionOp
   const defaults = (options.cdnBaseUrls?.length
     ? options.cdnBaseUrls
     : [...SCHEMA_CONFIG.cdnBaseUrls]
-  ).map((url) => applyRegistryVersion(url, options.registryVersion))
+  )
+    .map((url) => applyRegistryVersion(url, options.registryVersion))
+    .map((url) =>
+      options.runtime && isPerRuntimeRegistryVersion(options.registryVersion)
+        ? `${normalizeCdnBaseUrl(url)}/${options.runtime}`
+        : url,
+    )
 
   const resolved: string[] = []
   const explicitUrl = options.registryUrl

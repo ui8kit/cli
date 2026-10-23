@@ -18,12 +18,14 @@ import { handleError } from "../utils/errors.js"
 import { logger, Spinner } from "../utils/logger.js"
 import { installDependencies } from "../utils/package-manager.js"
 import {
+  assertInsideRoot,
+  assertSafeRegistryPath,
   defaultAliasesForDir,
-  listInstallRoots,
   normalizeDir,
   resolveFileInstallPath,
+  toPosix,
 } from "../utils/paths.js"
-import { detectFrameworkHint, findConfig, saveConfig, ensureDir, hasPackageJson } from "../utils/project.js"
+import { detectFrameworkHint, findConfig, saveConfig, hasPackageJson } from "../utils/project.js"
 import { ensureDir as fsEnsureDir, writeFile, writeJson } from "../utils/fs.js"
 
 export interface InitOptions {
@@ -174,13 +176,13 @@ export async function initCommand(options: InitOptions) {
 
   if (options.yes) {
     config = buildInitConfig({
+      ...cdnOptions,
       yes: true,
       registry: registryName,
       framework: asFramework(options.framework || detected),
       runtime: asRuntime(options.runtime, asFramework(options.framework || detected)),
       dir: options.dir,
       importStyle: options.importStyle,
-      ...cdnOptions,
     })
   } else {
     const responses = await prompts([
@@ -241,24 +243,24 @@ export async function initCommand(options: InitOptions) {
   try {
     await saveConfig(config)
 
-    for (const root of listInstallRoots(config)) {
-      await ensureDir(root)
-    }
-
+    // No empty scaffolding: only folders the installed files actually use are created.
+    let written: string[] = []
     if (!options.skipCore) {
       spinner.text = "Installing core utils from registry (best-effort)..."
-      await installCoreFiles(registryName as RegistryType, config, spinner, {
+      written = await installCoreFiles(registryName as RegistryType, config, spinner, {
         ...cdnOptions,
         cdnBaseUrls: config.cdnBaseUrls,
+        runtime: config.runtime,
       })
     }
 
     spinner.succeed(CLI_MESSAGES.success.initialized(registryName))
     logger.success(`\n✅ ${CLI_MESSAGES.success.setupComplete(registryName)}`)
     console.log(`\nContract ${SCHEMA_CONFIG.cliContractVersion} · dir=${config.dir} · framework=${config.framework}`)
-    console.log("\nDirectories:")
-    for (const root of listInstallRoots(config)) {
-      console.log(`  ${root}/`)
+    const dirs = [...new Set(written.map((file) => path.posix.dirname(file)))].sort()
+    if (dirs.length > 0) {
+      console.log("\nInstalled into:")
+      for (const dir of dirs) console.log(`  ${dir}/`)
     }
     console.log("\nNext steps:")
     CLI_MESSAGES.examples.init.forEach((example) => console.log(`  ${example}`))
@@ -283,7 +285,7 @@ async function installCoreFiles(
   config: Config,
   spinner: Spinner,
   cdnResolution: CdnResolutionOptions = {},
-): Promise<void> {
+): Promise<string[]> {
   const cdnUrls = getCdnUrls(registryType, cdnResolution)
 
   let registryIndex: RegistryIndex | null = null
@@ -298,16 +300,20 @@ async function installCoreFiles(
   if (!registryIndex) {
     spinner.text = "Registry unreachable — skipping core install"
     logger.warn("Could not reach registry to install core lib/utils/variants")
-    return
+    return []
   }
 
   const coreRefs = registryIndex.components.filter(
-    (c) => c.type === "registry:lib" || c.type === "registry:utils" || c.type === "registry:variants",
+    (c) =>
+      c.type === "registry:lib" ||
+      c.type === "registry:utils" ||
+      c.type === "registry:variants" ||
+      c.type === "registry:rules",
   )
 
   if (coreRefs.length === 0) {
     spinner.text = "No core registry items found — skipping"
-    return
+    return []
   }
 
   const loaded: CoreComponentDescriptor[] = []
@@ -321,9 +327,14 @@ async function installCoreFiles(
     for (const d of component.dependencies ?? []) deps.add(d)
   }
 
+  const written: string[] = []
   for (const descriptor of loaded) {
     spinner.text = `Installing ${descriptor.name}...`
-    await writeComponentFiles(descriptor.component, config)
+    written.push(
+      ...(descriptor.type === "registry:rules"
+        ? await writeRulesFiles(descriptor.component, config)
+        : await writeComponentFiles(descriptor.component, config)),
+    )
   }
 
   if (deps.size > 0) {
@@ -336,6 +347,7 @@ async function installCoreFiles(
   }
 
   spinner.text = `Installed ${loaded.length} core items`
+  return written
 }
 
 async function fetchCoreComponent(
@@ -344,7 +356,9 @@ async function fetchCoreComponent(
   cdnUrls: string[],
 ): Promise<Component | null> {
   const folders =
-    type === "registry:lib"
+    type === "registry:rules"
+      ? ["rules"]
+      : type === "registry:lib"
       ? ["lib", "components/lib"]
       : type === "registry:utils"
         ? ["utils", "lib"]
@@ -361,13 +375,45 @@ async function fetchCoreComponent(
   return null
 }
 
-async function writeComponentFiles(component: Component, config: Config): Promise<void> {
+async function writeComponentFiles(component: Component, config: Config): Promise<string[]> {
+  const written: string[] = []
   for (const file of component.files) {
-    const targetPath = path.join(
-      process.cwd(),
-      resolveFileInstallPath(file, component.type, config),
-    )
+    const rel = resolveFileInstallPath(file, component.type, config)
+    const targetPath = path.join(process.cwd(), rel)
     await fsEnsureDir(path.dirname(targetPath))
     await writeFile(targetPath, file.content || "", "utf-8")
+    written.push(rel)
   }
+  return written
+}
+
+/**
+ * Substitute the two installer placeholders of a `registry:rules` item:
+ *   `{kit}`   → primitives folder (item `meta.kitTarget`, default `components/ui`,
+ *               resolved like a `registry:ui` target, so `dir` / `paths.ui` apply)
+ *   `{globs}` → item `meta.globs` (relative to `dir`), prefixed with `dir`
+ */
+export function renderRulesContent(content: string, component: Component, config: Config): string {
+  const dir = normalizeDir(config.dir || SCHEMA_CONFIG.defaultDir)
+  const kitTarget = typeof component.meta?.kitTarget === "string" ? component.meta.kitTarget : "components/ui"
+  // Resolve a file inside the kit folder (same mapping as installed primitives), then take its folder.
+  const probe = `${kitTarget.replace(/\/+$/, "")}/x`
+  const kit = path.posix.dirname(resolveFileInstallPath({ path: probe, target: probe, content: "" }, "registry:ui", config))
+  const globList: string[] = Array.isArray(component.meta?.globs) ? component.meta!.globs : ["**/*"]
+  const globs = globList.map((g) => path.posix.join(dir, g)).join(",")
+  return content.replace(/\{kit\}/g, kit).replace(/\{globs\}/g, globs)
+}
+
+/** Rules items target the app root (e.g. `.cursor/rules/x.mdc`), not `dir`. */
+async function writeRulesFiles(component: Component, config: Config): Promise<string[]> {
+  const written: string[] = []
+  for (const file of component.files) {
+    const rel = toPosix(file.target?.trim() || file.path)
+    assertSafeRegistryPath(rel)
+    const targetPath = assertInsideRoot(process.cwd(), rel)
+    await fsEnsureDir(path.dirname(targetPath))
+    await writeFile(targetPath, renderRulesContent(file.content || "", component, config), "utf-8")
+    written.push(rel)
+  }
+  return written
 }
