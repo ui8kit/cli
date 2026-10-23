@@ -2,7 +2,7 @@
 
 Universal **shadcn-style** registry service: `init` / `add` / `list` / `diff` / `scan` / `build` — fetch registry items and **write files into your app** (not into `node_modules`). Tailwind sees classes. Works for React, Svelte, Vue, Solid, Go Templ, Latte, Twig, Jinja2 — via `framework` / `runtime` + path contracts.
 
-Contract version: **2.0.0** · npm package: **`ui8kit@2.0.4`** · digest: **`@ui8kit/registry@2.0.0`**
+Contract version: **2.0.0** · npm package: **`ui8kit@3.0.0`** · digest: **`@ui8kit/registry@3.0.0`** (per-runtime `r/<runtime>/`; `--registry-version 3.0.0` resolves it, legacy `@2.0.0` root `r/` still works)
 
 **Full documentation (English):** [docs/README.md](./docs/README.md)  
 **Agents / maintainers:** [AGENTS.md](./AGENTS.md) · project hub: [.project/README.md](./.project/README.md)
@@ -39,7 +39,7 @@ Published digest: `@ui8kit/registry@2.0.0` (`/r` on unpkg / jsDelivr).
 
 ```bash
 # Svelte example — omit --skip-core so core utils land under src/utils
-bunx ui8kit@2.0.4 init --yes \
+bunx ui8kit@3.0.0 init --yes \
   --framework svelte \
   --runtime svelte \
   --dir src \
@@ -79,9 +79,9 @@ After init, edit to pin CDN + runtime (example for Vite/Svelte under `src/`):
 ### 3. Add UI (runtime file filter)
 
 ```bash
-bunx ui8kit@2.0.4 add button stack title text --runtime svelte --force
+bunx ui8kit@3.0.0 add button stack title text --runtime svelte --force
 # or everything:
-bunx ui8kit@2.0.4 add --all --runtime svelte --force
+bunx ui8kit@3.0.0 add --all --runtime svelte --force
 ```
 
 `--runtime svelte` keeps `.svelte`, `*.shared.ts`, `*.variants.json`, **type files** (`*.types.ts`, `*.d.ts`) and **any file a kept file imports** (relative imports, followed transitively), so installs never end up with unresolved imports.
@@ -120,17 +120,17 @@ for (const f of item.files) {
 ## Quick start (short)
 
 ```bash
-bunx ui8kit@2.0.4 init --yes --framework svelte --runtime svelte --dir src \
+bunx ui8kit@3.0.0 init --yes --framework svelte --runtime svelte --dir src \
   --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
-bunx ui8kit@2.0.4 add button --runtime svelte --force
+bunx ui8kit@3.0.0 add button --runtime svelte --force
 ```
 
 Go / PHP (kit on disk). Prefer **with** core utils unless you only need markup:
 
 ```bash
-bunx ui8kit@2.0.4 init --yes --framework templ --runtime templ --dir internal \
+bunx ui8kit@3.0.0 init --yes --framework templ --runtime templ --dir internal \
   --registry-url https://unpkg.com/@ui8kit/registry@2.0.0/r --strict-cdn
-bunx ui8kit@2.0.4 add button --runtime templ --force
+bunx ui8kit@3.0.0 add button --runtime templ --force
 ```
 
 ## Canonical folders under `{dir}`
