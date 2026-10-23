@@ -77,7 +77,7 @@ describe("add command CDN option wiring", () => {
     })
   })
 
-  it("creates base project directories when adding --all", async () => {
+  it("does not scaffold empty base directories when adding --all", async () => {
     const component = {
       name: "button",
       type: "registry:ui",
@@ -98,12 +98,12 @@ describe("add command CDN option wiring", () => {
     })
 
     const createdDirs = ensureDirSpy.mock.calls.map(([dir]) => path.resolve(String(dir)))
-    expect(createdDirs).toContain(path.resolve(fixture, "src/lib"))
-    expect(createdDirs).toContain(path.resolve(fixture, "src/components"))
+    // only the folders of files actually written
     expect(createdDirs).toContain(path.resolve(fixture, "src/components/ui"))
-    expect(createdDirs).toContain(path.resolve(fixture, "src/blocks"))
-    expect(createdDirs).toContain(path.resolve(fixture, "src/layouts"))
-    expect(createdDirs).toContain(path.resolve(fixture, "src/variants"))
+    expect(createdDirs).not.toContain(path.resolve(fixture, "src/lib"))
+    expect(createdDirs).not.toContain(path.resolve(fixture, "src/blocks"))
+    expect(createdDirs).not.toContain(path.resolve(fixture, "src/layouts"))
+    expect(createdDirs).not.toContain(path.resolve(fixture, "src/variants"))
   })
 
   it("does not create base directories in dry-run mode", async () => {

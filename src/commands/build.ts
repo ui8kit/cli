@@ -24,6 +24,7 @@ const BUILD_OUTPUT_FOLDERS = {
   "registry:layout": "layouts",
   "registry:variants": "components/variants",
   "registry:widget": "widgets",
+  "registry:rules": "rules",
 } as const
 
 export async function buildCommand(
@@ -89,7 +90,7 @@ function getOutputDir(type: string): string {
   return folder || "misc"
 }
 
-async function createIndexFile(registry: { items: any[]; registry?: string }, outputDir: string) {
+async function createIndexFile(registry: { items: any[]; registry?: string; version?: string }, outputDir: string) {
   const index = {
     $schema: "https://ui.buildy.tw/schema/registry.json",
     components: registry.items.map((item) => ({
@@ -101,7 +102,7 @@ async function createIndexFile(registry: { items: any[]; registry?: string }, ou
       registryDependencies: item.registryDependencies ?? [],
     })),
     categories: SCHEMA_CONFIG.componentCategories,
-    version: "1.0.0",
+    version: registry.version || "1.0.0",
     lastUpdated: new Date().toISOString(),
     registry: registry?.registry || SCHEMA_CONFIG.defaultRegistryType,
   }

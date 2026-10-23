@@ -80,7 +80,7 @@ export const CLI_MESSAGES = {
   // Examples and help text
   examples: {
     add: [
-      "Example: npx ui8kit@latest add button card",
+      "Example: npx ui8kit@latest add button input",
       "Example: npx ui8kit@latest add button --registry ui",
       "Example: npx ui8kit@latest add all  # Install all components",
       'Example: npx ui8kit@latest add --all --registry ui  # Install all ui components',
@@ -89,7 +89,7 @@ export const CLI_MESSAGES = {
     ],
     init: [
       `npx ui8kit@latest add button --registry ui - Add a button component`,
-      `npx ui8kit@latest add card input --registry ui - Add multiple components`,
+      `npx ui8kit@latest add button input select --registry ui - Add multiple components`,
       `npx ui8kit@latest add --all --registry ui - Add all components`,
       `npx ui8kit@latest add "https://example.com/component.json" - Add from external URL`
     ],

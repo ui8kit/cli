@@ -15,14 +15,12 @@ import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-util
 import { applyTransforms, shouldTransformFile } from "../utils/transform.js"
 import {
   inferTargetFromType,
-  listInstallRoots,
   resolveFileInstallPath,
   resolveInstallDir,
 } from "../utils/paths.js"
-import { ensureDir } from "../utils/project.js"
-import { applyPathOverrides } from "../utils/paths.js"
+import { applyPathOverrides, assertInsideRoot } from "../utils/paths.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
-import { filterFilesForRuntime } from "../utils/runtime-files.js"
+import { assertKnownRuntime, filterFilesForRuntime } from "../utils/runtime-files.js"
 
 interface AddOptions {
   force?: boolean
@@ -43,7 +41,7 @@ interface AddOptions {
  * Hidden from catalogs only (interactive picker, `--all`). Never applied to
  * explicit names or `registryDependencies`, so `utils` and `lib/*` resolve.
  */
-const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils"]
+const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils", "registry:rules"]
 
 /** Options for fetching a single item by name: no catalog exclusions. */
 function fetchOptions<T extends { excludeTypes: string[] }>(requestOptions: T): T {
@@ -64,12 +62,17 @@ export async function addCommand(components: string[], options: AddOptions) {
       throw new ConfigNotFoundError(registryType)
     }
     const config = applyPathOverrides(loadedConfig, options.path)
+  assertKnownRuntime(options.runtime)
+  assertKnownRuntime(config.runtime, "config runtime")
+    assertKnownRuntime(options.runtime)
+    assertKnownRuntime(config.runtime, "config runtime")
 
     const cdnResolution: CdnResolutionOptions = {
       registryUrl: options.registryUrl || config.registryUrl,
       registryVersion: options.registryVersion || config.registryVersion,
       strictCdn: options.strictCdn ?? config.strictCdn,
       cdnBaseUrls: config.cdnBaseUrls,
+      runtime: options.runtime || config.runtime,
     }
     const requestOptions = {
       excludeTypes: ADD_EXCLUDED_COMPONENT_TYPES,
@@ -101,10 +104,6 @@ export async function addCommand(components: string[], options: AddOptions) {
     }
 
     logger.info(CLI_MESSAGES.info.installing(registryType))
-
-    for (const root of listInstallRoots(config)) {
-      await ensureDir(root)
-    }
 
     const getComponentFn = (name: string, type: RegistryType) => getComponent(name, type, fetchOptions(requestOptions))
 
@@ -149,10 +148,6 @@ async function addAllComponents(
   const spinner = new Spinner(CLI_MESSAGES.info.fetchingComponentList(registryType)).start()
 
   try {
-    if (!options.dryRun) {
-      await ensureBaseProjectDirectories(config)
-    }
-
     const allComponents = await getAllComponentsFn(registryType)
 
     if (allComponents.length === 0) {
@@ -198,12 +193,6 @@ async function addAllComponents(
     console.log("Try these alternatives:")
     CLI_MESSAGES.examples.troubleshooting.forEach(alt => console.log(`  • ${alt}`))
     process.exit(1)
-  }
-}
-
-async function ensureBaseProjectDirectories(config: Config): Promise<void> {
-  for (const root of listInstallRoots(config)) {
-    await fsEnsureDir(root)
   }
 }
 
@@ -507,7 +496,7 @@ async function installComponentFiles(
 ): Promise<void> {
   for (const file of component.files) {
     const relative = resolveFileInstallPath(file, component.type, config)
-    const targetPath = path.join(process.cwd(), relative)
+    const targetPath = assertInsideRoot(process.cwd(), relative)
     const fileName = path.basename(targetPath)
 
     if (!force && (await pathExists(targetPath))) {

@@ -146,6 +146,27 @@ function stripKnownPrefixes(rel: string, typeFolder: string): string {
 }
 
 /**
+ * Reject registry file paths that could escape the install root: absolute
+ * paths (POSIX, Windows drive or UNC) and any `..` segment.
+ */
+export function assertSafeRegistryPath(value: string): void {
+  const p = toPosix(value)
+  if (/^\//.test(p) || /^[A-Za-z]:/.test(p) || p.split("/").includes("..")) {
+    throw new Error(`Unsafe install path "${value}": registry targets must be relative and must not contain ".."`)
+  }
+}
+
+/** Throw unless `relative` resolves inside `root` (the project cwd). */
+export function assertInsideRoot(root: string, relative: string): string {
+  const abs = path.resolve(root, relative)
+  const rel = path.relative(path.resolve(root), abs)
+  if (rel === ".." || rel.startsWith(".." + path.sep) || path.isAbsolute(rel)) {
+    throw new Error(`Refusing to write outside the project: ${relative}`)
+  }
+  return abs
+}
+
+/**
  * Resolve final cwd-relative path for a registry file.
  * Always preserves nested paths (no basename flatten).
  */
@@ -157,6 +178,7 @@ export function resolveFileInstallPath(
   const dir = normalizeDir(config.dir || "src")
   const typeFolder = resolveTypeFolder(componentType, config)
 
+  assertSafeRegistryPath(file.target && file.target.trim() ? file.target : file.path)
   if (file.target && file.target.trim()) {
     const original = toPosix(file.target).replace(/^\.\//, "").replace(/^\/+/, "")
     // Target relative to `dir` (strip a leading `dir/`, or legacy `src/`)

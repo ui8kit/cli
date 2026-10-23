@@ -37,6 +37,8 @@ export function matchesRuntimeFile(filePath: string, runtime: string): boolean {
   switch (runtime) {
     case "react":
       return /\.tsx$/i.test(base) && !/\.solid\.tsx$/i.test(base)
+    case "webcomponent":
+      return /\.wc\.ts$/i.test(base)
     case "solid":
       return /\.solid\.tsx$/i.test(base)
     case "svelte":
@@ -56,7 +58,7 @@ export function matchesRuntimeFile(filePath: string, runtime: string): boolean {
     case "jinja2":
       return /\.(j2|jinja|jinja2)$/i.test(base)
     default:
-      return true
+      return false
   }
 }
 
@@ -209,4 +211,11 @@ export function filterFilesForRuntime<T extends FileLike & { content?: string }>
 
 export function isKnownRuntime(value: string): value is Runtime {
   return (RUNTIMES as readonly string[]).includes(value)
+}
+
+/** Throw on an unknown runtime instead of silently installing every file. */
+export function assertKnownRuntime(value: string | undefined, source = "--runtime"): void {
+  if (value !== undefined && !isKnownRuntime(value)) {
+    throw new Error(`Unknown ${source} "${value}". Valid runtimes: ${RUNTIMES.join(", ")}`)
+  }
 }

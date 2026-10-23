@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Per-runtime registries (digest >= 3.0.0): with `registryVersion` 3+ and a runtime, the default CDN bases resolve to `…/r/<runtime>` (an explicit `--registry-url` is used as-is).
+- Item type `registry:rules` (registry folder `rules/`): `init` installs it into the app root (`.cursor/rules/…`), substituting only `{kit}` (primitives folder, from `meta.kitTarget` + `dir`/`paths.ui`) and `{globs}` (`meta.globs` prefixed with `dir`). Hidden from `add`/`list`.
+
+### Changed
+- `init` and `add` no longer scaffold empty kit folders (`blocks/`, `layouts/`, `lib/`, …): only folders of files actually written are created.
+
+### Added (earlier)
+- Runtime/framework `webcomponent`: `--runtime webcomponent` installs `*.wc.ts` + shared files (`*.wc.ts` stays excluded from react/solid/svelte/vue).
+
+### Fixed
+- **Security:** registry file targets/paths that are absolute or contain `..` are rejected, and every write is checked to stay inside the project directory.
+- Unknown `--runtime` (add/init) or `--framework` (init) now fails with an error instead of installing every runtime / silently falling back to `none`.
+- `build` writes `registry.json` `version` into `r/index.json` (was hard-coded `1.0.0`).
+- `init` "Next steps" and `add` examples no longer mention a non-existent `card` component.
+
 ## [2.0.4] - 2026-10-17
 
 ### Fixed

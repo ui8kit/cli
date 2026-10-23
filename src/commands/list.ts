@@ -4,7 +4,7 @@ import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { logger } from "../utils/logger.js"
 import { CdnResolutionOptions, SCHEMA_CONFIG, type RegistryType } from "../utils/schema-config.js"
 
-const LIST_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils"]
+const LIST_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils", "registry:rules"]
 
 interface ListOptions {
   registry?: string

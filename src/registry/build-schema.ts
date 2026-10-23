@@ -10,6 +10,7 @@ export const registryItemTypeSchema = z.enum([
   "registry:layout",
   "registry:variants",
   "registry:widget",
+  "registry:rules",
 ])
 
 export const registryItemFileSchema = z.object({
@@ -53,6 +54,8 @@ export const registryItemSchema = z.object({
 
 export const registrySchema = z.object({
   $schema: z.string().optional(),
+  /** Digest stamped into r/index.json `version` (defaults to 1.0.0). */
+  version: z.string().optional(),
   items: z.array(registryItemSchema),
 })
 
