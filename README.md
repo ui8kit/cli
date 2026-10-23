@@ -1,5 +1,15 @@
 # ui8kit CLI
 
+<!-- ui8kit-ecosystem:start -->
+> **UI8Kit 3 ecosystem**
+>
+> - [github.com/ui8kit/codegen](https://github.com/ui8kit/codegen) — generator of primitives (spec → `generated/`)
+> - [github.com/ui8kit/registry](https://github.com/ui8kit/registry) — packed per-runtime registry on npm/CDN — [npm `@ui8kit/registry`](https://www.npmjs.com/package/@ui8kit/registry)
+> - [github.com/ui8kit/cli](https://github.com/ui8kit/cli) — installer `ui8kit` — [npm `ui8kit`](https://www.npmjs.com/package/ui8kit)  ← **you are here**
+>
+> Pipeline: codegen (spec → `generated/`) → registry (pack `r/<rt>/`) → CDN (unpkg / jsDelivr) → cli (`init` / `add`) → app
+<!-- ui8kit-ecosystem:end -->
+
 Shadcn-style registry CLI: `init` / `add` / `list` / `diff` / `info` / `scan` / `build`. It fetches registry items from a CDN and **writes source files into your app** (not into `node_modules`), so Tailwind sees the classes.
 
 npm package **`ui8kit@3.x`** · registry digest **`@ui8kit/registry@3`** (per-runtime `r/<runtime>/`) · runtimes **react, vue, svelte, solid, webcomponent** · config contract `2.0.0`
@@ -151,3 +161,83 @@ Scripts: [scripts/README.md](./scripts/README.md). Changelog: [CHANGELOG.md](./C
 ## License
 
 MIT © UI8Kit
+
+<!-- ui8kit-install:start -->
+## Installing primitives with the ui8kit CLI
+
+This repo **is** the installer. Exact flags below are taken from `src/index.ts` (verified with `node dist/index.js <cmd> --help`).
+
+### Quick start per runtime
+
+Always call the CLI with a pinned major: `npx ui8kit@3`. `add all` and `add --all` are equivalent.
+
+```bash
+# JS runtimes (writes package.json peers clsx + tailwind-merge for utils)
+npx ui8kit@3 init --yes --framework react        --dir src && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework vue          --dir src && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework svelte       --dir src && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework solid        --dir src && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework webcomponent --dir src && npx ui8kit@3 add button
+npx ui8kit@3 add --all            # everything in r/<runtime>/index.json
+
+# Server runtimes (no package.json is written or required)
+npx ui8kit@3 init --yes --framework templ  --dir internal  && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework twig   --dir templates && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework latte  --dir templates && npx ui8kit@3 add button
+npx ui8kit@3 init --yes --framework jinja2 --dir templates && npx ui8kit@3 add button
+```
+
+Post-install for server runtimes (the CLI prints the exact commands from item `meta`; it never runs them and never edits `composer.json` / `go.mod`):
+
+- **templ**: `go get github.com/a-h/templ@<printed version>` → `templ generate` (after every `add`, and in CI; `*_templ.go` is generated, not shipped) → `go build ./...`. With `go.mod` present the utils import is rewritten to `<module>/<dir>/utils`.
+- **twig / latte**: `composer require "twig/twig:^3.0"` (or the printed latte package), add the printed PSR-4 entry to `composer.json`, then `composer dump-autoload`:
+  ```json
+  { "autoload": { "psr-4": { "UI8Kit\\Twig\\": "templates/runtime/" } } }
+  ```
+  (`UI8Kit\\Latte\\` for latte). Twig: `$twig->addExtension(new \UI8Kit\Twig\TwigExtension())`.
+- **jinja2**: `pip install "Jinja2>=3.1,<4"`; `from ui8kit_jinja import environment` → `environment().get_template("ui/button/button.html.j2").render(p={...}, children=...)`.
+
+### Commands and flags (ui8kit 3.2)
+
+Global: `-c, --cwd <dir>`, `-v, --verbose`, `--no-cache`, `-V, --version`.
+
+| Command | Flags |
+|---------|-------|
+| `init` | `-y, --yes`, `--framework <react\|vue\|svelte\|solid\|webcomponent\|templ\|latte\|twig\|jinja2\|none>`, `--runtime <name>` (defaults to framework), `--dir <path>`, `--skip-core`, `-r, --registry <type>` (default `ui`), `--registry-url <url>`, `--registry-version <v>`, `--strict-cdn`, `--import-style <alias\|package>` (`package` deprecated) |
+| `add [components...]` | `-a, --all` (or `add all`), `-f, --force`, `--runtime <name>`, `--path <key=dir>` (repeatable, e.g. `ui=kit`), `--dry-run`, `--retry`, `-r, --registry <type>`, `--registry-url`, `--registry-version`, `--strict-cdn` |
+| `check` | offline verify vs `ui8kit.lock.json`; `--json`, `--adopt` (fetches registry, adopts only matching files), `--runtime`, `--registry-url`, `--registry-version`, `--strict-cdn` (the last three only with `--adopt`) |
+| `list` | `--json`, `-r, --registry`, `--registry-url`, `--registry-version`, `--strict-cdn` |
+| `diff [component]` | `--json`, `-r, --registry`, `--registry-url`, `--registry-version`, `--strict-cdn` |
+| `info` | `--json`, `--cdn` (resolved CDN order and overrides) |
+| `scan` | `-r, --registry <type\|path>`, `-o, --output <file>`, `-s, --source <dir>` |
+| `build [registry]` | default `./src/registry.json`; `-o, --output <path>` (default `./packages/registry/r`) |
+| `cache clear` | — |
+| `registry clean` | `--dry-run`, `--all`, `-f, --force` |
+| `reset` | `--dry-run`, `--with-cache`, `-y, --yes`, `-f, --force` |
+
+## Where registries live
+
+- **Default**: `@ui8kit/registry@<CLI major>` from npm via CDN, tried in order **unpkg → jsDelivr**:
+  - `https://unpkg.com/@ui8kit/registry@3/r/<runtime>/index.json`
+  - `https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/<runtime>/index.json`
+- **Per runtime** (`react`, `vue`, `svelte`, `solid`, `webcomponent`, `templ`, `twig`, `latte`, `jinja2`) under `r/<runtime>/`:
+  - `index.json` — catalogue
+  - `components/ui/<name>.json` — primitives (e.g. `button.json`)
+  - `utils/utils.json` — `registry:utils` (installed by `init`)
+  - `rules/rules.json` — `registry:rules` → `.cursor/rules/ui8kit-primitives.mdc` (installed by `init`)
+- **`$schema`**: `https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/{schema,registry,registry-item}.json` (config / index / item).
+- **Version**: `--registry-version` or `"registryVersion"` in `ui8kit.config.json` accepts exact (`3.1.0`), range (`3.1`) or dist-tag (`canary`); default is the CLI major (`3` → newest 3.x.y).
+- **Resolution order**: `--registry-url` / `registryUrl` → `cdnBaseUrls` (config) → built-in unpkg / jsDelivr. With `--strict-cdn` (or `strictCdn`) and an explicit URL, only that URL is used.
+- **Brand registries**: `@ui8kit/registry` ships **primitives only**. Brand kits (blocks, composites) host their own registry, e.g. `--registry-url https://registry.buildy.tw/react`, and reference primitives by absolute URL in `registryDependencies` (pinned digest, recorded in `meta.primitives`). Brand items get their own lock entries.
+- **Lock**: `init` / `add` write `ui8kit.lock.json` (source URL, exact version, sha256 per file). Commit it; verify with `npx ui8kit@3 check` (offline, exit 1 on `missing` / `modified` / `mixed-versions` / `rules-version`). No lock yet → `npx ui8kit@3 check --adopt` once.
+
+### Where source lives
+
+```
+codegen  specs/ + bricks/ ─gen─▶ generated/<rt>/   (build output, NOT committed)
+registry pack:runtimes  ──────────▶ r/<rt>/*.json     (published: @ui8kit/registry)
+npm ──▶ unpkg / jsDelivr ──▶ cli: ui8kit init / add ──▶ app {dir}/ui, {dir}/utils + ui8kit.lock.json
+```
+
+Fix a primitive in **codegen**, repack in **registry**, publish, then `add <name> --force` in the app. Never fix it in the app or in `r/` by hand.
+<!-- ui8kit-install:end -->
