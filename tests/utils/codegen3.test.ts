@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import path from "node:path"
 import {
   assertKnownRuntime,
   filterFilesForRuntime,
@@ -74,7 +75,7 @@ describe("install path safety", () => {
   })
 
   it("assertInsideRoot guards the final write path", () => {
-    expect(assertInsideRoot("/proj", "src/ui/a.ts")).toBe("/proj/src/ui/a.ts")
+    expect(assertInsideRoot("/proj", "src/ui/a.ts")).toBe(path.resolve("/proj", "src/ui/a.ts"))
     expect(() => assertInsideRoot("/proj", "../x")).toThrow(/outside the project/)
   })
 })
