@@ -36,12 +36,14 @@ describe("webcomponent runtime slice", () => {
   it("unknown runtimes match nothing and are rejected", () => {
     expect(matchesRuntimeFile("button.tsx", "angular")).toBe(false)
     expect(() => assertKnownRuntime("angular")).toThrow(/Unknown --runtime "angular"/)
-    expect(() => assertKnownRuntime("webcomponent")).not.toThrow()
+    expect(() => assertKnownRuntime("webcomponent")).toThrow(/experimental: the registry has no r\/webcomponent/)
     expect(() => assertKnownRuntime(undefined)).not.toThrow()
   })
 
-  it("init accepts webcomponent and rejects unknown framework/runtime", () => {
-    expect(() => assertKnownInitOptions({ framework: "webcomponent" })).not.toThrow()
+  it("init rejects experimental webcomponent clearly and unknown framework/runtime", () => {
+    expect(() => assertKnownInitOptions({ framework: "webcomponent" })).toThrow(/experimental/)
+    expect(() => assertKnownInitOptions({ runtime: "webcomponent" })).toThrow(/experimental/)
+    expect(() => assertKnownInitOptions({ framework: "react" })).not.toThrow()
     expect(() => assertKnownInitOptions({ framework: "angular" })).toThrow(/Unknown --framework/)
     expect(() => assertKnownInitOptions({ runtime: "nope" })).toThrow(/Unknown --runtime/)
   })
@@ -77,5 +79,19 @@ describe("install path safety", () => {
   it("assertInsideRoot guards the final write path", () => {
     expect(assertInsideRoot("/proj", "src/ui/a.ts")).toBe(path.resolve("/proj", "src/ui/a.ts"))
     expect(() => assertInsideRoot("/proj", "../x")).toThrow(/outside the project/)
+  })
+})
+
+describe("experimental runtimes opt-in", () => {
+  it("UI8KIT_EXPERIMENTAL=webcomponent lifts the block", () => {
+    const prev = process.env.UI8KIT_EXPERIMENTAL
+    process.env.UI8KIT_EXPERIMENTAL = "webcomponent"
+    try {
+      expect(() => assertKnownRuntime("webcomponent")).not.toThrow()
+      expect(() => assertKnownInitOptions({ framework: "webcomponent" })).not.toThrow()
+    } finally {
+      if (prev === undefined) delete process.env.UI8KIT_EXPERIMENTAL
+      else process.env.UI8KIT_EXPERIMENTAL = prev
+    }
   })
 })

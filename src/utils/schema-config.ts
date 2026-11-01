@@ -17,6 +17,37 @@ export const FRAMEWORKS = [
 
 export type Framework = (typeof FRAMEWORKS)[number]
 
+/**
+ * Runtimes known to the contract but not published in the registry yet
+ * (no r/<runtime>/). Hidden from prompts/help and rejected with a clear error.
+ */
+export const EXPERIMENTAL_RUNTIMES = ["webcomponent"] as const
+
+/**
+ * Opt-in for testing an experimental runtime against a registry that ships it
+ * (e.g. the @ui8kit/registry npm package): `UI8KIT_EXPERIMENTAL=webcomponent`.
+ */
+function experimentalOptIn(value: string): boolean {
+  return (process.env.UI8KIT_EXPERIMENTAL ?? "").split(",").map((s) => s.trim()).includes(value)
+}
+
+export function isExperimentalRuntime(value: string | undefined): boolean {
+  return value !== undefined && (EXPERIMENTAL_RUNTIMES as readonly string[]).includes(value) && !experimentalOptIn(value)
+}
+
+/** Frameworks the registry actually ships (what `init` / `add --framework` offer). */
+export const AVAILABLE_FRAMEWORKS = FRAMEWORKS.filter(
+  (f) => !(EXPERIMENTAL_RUNTIMES as readonly string[]).includes(f),
+) as readonly Framework[]
+
+export function experimentalRuntimeError(value: string, source = "--framework"): Error {
+  return new Error(
+    `${source} "${value}" is experimental: the registry has no r/${value}/ yet, so nothing can be installed. ` +
+      `Available: ${AVAILABLE_FRAMEWORKS.filter((f) => f !== "none").join(", ")}. ` +
+      `To try it against a registry that ships it anyway, set UI8KIT_EXPERIMENTAL=${value}.`,
+  )
+}
+
 /** Runtime slice inside a digest registry (often equals framework for JS). */
 export const RUNTIMES = [
   "react",
@@ -131,9 +162,8 @@ export function buildDefaultAliases(dir: string = DEFAULT_DIR): Record<string, s
 export const SCHEMA_CONFIG = {
   schemaVersion: "http://json-schema.org/draft-07/schema#",
   /** JSON Schemas shipped by @ui8kit/registry (same major as the CLI, from package.json). */
-  get baseUrl(): string {
-    return `https://cdn.jsdelivr.net/npm/@ui8kit/registry${registryMajorSuffix()}/schema`
-  },
+  /** JSON Schemas (registry.json, registry-item.json, config.json) hosted with the registry. */
+  baseUrl: "https://registry.buildy.tw/schema",
   cliContractVersion: "2.0.0",
 
   supportedFrameworks: FRAMEWORKS,
@@ -192,7 +222,7 @@ export const SCHEMA_CONFIG = {
   fieldDescriptions: {
     schema: "JSON Schema URL",
     framework: "Project framework / stack hint",
-    runtime: "Registry runtime: react|vue|svelte|solid|webcomponent|templ|latte|twig|jinja2",
+    runtime: "Registry runtime: react|vue|svelte|solid|templ|latte|twig|jinja2 (webcomponent: experimental, not published)",
     typescript: "Whether the project uses TypeScript",
     globalCss: "Path to global styles entry (Tailwind)",
     dir: "Install root for kit files (src, web/src, internal, …)",
@@ -401,7 +431,7 @@ export function getSchemaRef(schemaName: string): string {
 
 export function getSchemaUrl(schemaName?: string): string {
   if (schemaName) return getSchemaRef(schemaName)
-  return `${SCHEMA_CONFIG.baseUrl}/schema.json`
+  return `${SCHEMA_CONFIG.baseUrl}/config.json`
 }
 
 /** @deprecated use TYPE_TO_FOLDER + config.dir */

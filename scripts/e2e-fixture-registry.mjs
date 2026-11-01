@@ -67,11 +67,33 @@ function project(name) {
 
 const exists = (dir, rel) => fs.existsSync(path.join(dir, rel))
 
+{
+  const dir = project("webcomponent-experimental")
+  const r = await run(dir, ["add", "button", "-y", "--framework", "webcomponent"])
+  check("webcomponent is rejected as experimental", () => {
+    assert.notEqual(r.code, 0, r.out)
+    assert.match(r.out, /experimental/)
+  })
+}
+
 for (const rt of ["svelte", "react"]) {
   const ext = rt === "react" ? "tsx" : "svelte"
   const regUrl = `${server.url}/${rt}`
   const common = ["--registry-url", regUrl, "--strict-cdn"]
   console.log(`\n[${rt}]`)
+
+  // 0) add without init: -y --framework runs a non-interactive init first
+  {
+    const dir = project(`${rt}-noinit`)
+    const add = await run(dir, ["add", "button", "-y", "--framework", rt, ...common])
+    check("add -y --framework without config succeeds", () => assert.equal(add.code, 0, add.out))
+    check("add without config writes ui8kit.config.json with registry.buildy.tw $schema", () => {
+      const cfg = JSON.parse(fs.readFileSync(path.join(dir, "ui8kit.config.json"), "utf8"))
+      assert.equal(cfg.$schema, "https://registry.buildy.tw/schema/config.json")
+      assert.equal(cfg.framework, rt)
+    })
+    check("add without config installs the item", () => assert.ok(exists(dir, `src/primitives/button/button.${ext}`), add.out))
+  }
 
   // 1) init with --runtime (no `--framework none` workaround), then add three items
   {

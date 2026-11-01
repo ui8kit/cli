@@ -8,7 +8,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 
 ```json
 {
-  "$schema": "https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/schema.json",
+  "$schema": "https://registry.buildy.tw/schema/config.json",
   "contractVersion": "2.0.0",
   "framework": "svelte",
   "runtime": "svelte",
@@ -46,7 +46,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `contractVersion` | string | `"2.0.0"` | Config/registry contract major |
-| `framework` | enum | `"none"` | `react` \| `vue` \| `svelte` \| `solid` \| `webcomponent` \| `templ` \| `latte` \| `twig` \| `jinja2` \| `none` |
+| `framework` | enum | `"none"` | `react` \| `vue` \| `svelte` \| `solid` \| `templ` \| `latte` \| `twig` \| `jinja2` \| `none` |
 | `runtime` | enum | — | Default digest slice for installs |
 | `typescript` | boolean | `true` | Project uses TypeScript (metadata) |
 | `globalCss` | string | `"src/index.css"` | Global / Tailwind entry path |

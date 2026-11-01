@@ -1,5 +1,5 @@
 import path from "path"
-import { RUNTIMES, type Runtime } from "./schema-config.js"
+import { RUNTIMES, type Runtime, experimentalRuntimeError, isExperimentalRuntime } from "./schema-config.js"
 
 /** Component types that always install every file (no runtime slice). */
 const ALWAYS_FULL_TYPES = new Set([
@@ -215,7 +215,8 @@ export function isKnownRuntime(value: string): value is Runtime {
 
 /** Throw on an unknown runtime instead of silently installing every file. */
 export function assertKnownRuntime(value: string | undefined, source = "--runtime"): void {
+  if (isExperimentalRuntime(value)) throw experimentalRuntimeError(value!, source)
   if (value !== undefined && !isKnownRuntime(value)) {
-    throw new Error(`Unknown ${source} "${value}". Valid runtimes: ${RUNTIMES.join(", ")}`)
+    throw new Error(`Unknown ${source} "${value}". Valid runtimes: ${RUNTIMES.filter((r) => !isExperimentalRuntime(r)).join(", ")}`)
   }
 }

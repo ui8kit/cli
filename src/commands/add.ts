@@ -22,9 +22,16 @@ import {
 import { applyPathOverrides, assertInsideRoot } from "../utils/paths.js"
 import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../utils/fs.js"
 import { assertKnownRuntime } from "../utils/runtime-files.js"
+import { initCommand } from "./init.js"
 import { collectToolchainHints, isServerRuntime, printToolchainHints } from "../utils/server-runtime.js"
 
 interface AddOptions {
+  /** Non-interactive: auto-init without prompts when ui8kit.config.json is missing. */
+  yes?: boolean
+  /** Framework/runtime for the automatic init (no config yet). */
+  framework?: string
+  /** Install root for the automatic init (default: src). */
+  dir?: string
   force?: boolean
   dryRun?: boolean
   all?: boolean
@@ -58,6 +65,20 @@ function fetchOptions<T extends { excludeTypes: string[]; cdn?: CdnResolutionOpt
   }
 }
 
+/** Files written by this run (project-relative), reported in the summary as the real install location. */
+const writtenFiles: string[] = []
+
+/** Top-level install folders of the written files, e.g. `src/primitives/button/`. */
+export function summarizeInstallDirs(files: string[]): string[] {
+  const dirs = new Set<string>()
+  for (const f of files) {
+    const parts = f.split("/")
+    // dir/<folder>/<name>/file → dir/<folder>/<name>/ ; dir/<folder>/file → dir/<folder>/
+    dirs.add(parts.length > 3 ? parts.slice(0, 3).join("/") + "/" : parts.slice(0, -1).join("/") + "/")
+  }
+  return [...dirs].sort()
+}
+
 /** Types installed as shared foundations: never overwritten when pulled in as a dependency. */
 const SHARED_FOUNDATION_TYPES = new Set(["registry:utils", "registry:lib"])
 
@@ -83,9 +104,13 @@ export async function addCommand(components: string[], options: AddOptions) {
   const registryType = resolveRegistryType(options.registry)
 
   try {
-    const loadedConfig = await findConfig(registryType)
+    let loadedConfig = await findConfig(registryType)
     if (!loadedConfig) {
-      throw new ConfigNotFoundError(registryType)
+      loadedConfig = await autoInit(registryType, options)
+    } else if (options.framework && options.framework !== loadedConfig.framework) {
+      logger.warn(
+        `--framework ${options.framework} ignored: ui8kit.config.json already sets framework "${loadedConfig.framework}" (run init to change it).`,
+      )
     }
     const config = applyPathOverrides(loadedConfig, options.path)
     assertKnownRuntime(options.runtime)
@@ -149,6 +174,29 @@ export async function addCommand(components: string[], options: AddOptions) {
   } catch (error) {
     handleError(error)
   }
+}
+
+/**
+ * No ui8kit.config.json: run `init` first instead of failing. Non-interactive
+ * (defaults) with -y/--yes, --framework, or without a TTY; interactive otherwise.
+ */
+async function autoInit(registryType: RegistryType, options: AddOptions): Promise<Config> {
+  const nonInteractive = Boolean(options.yes || options.framework || !process.stdin.isTTY)
+  logger.info(
+    `No ui8kit.config.json found: running init${nonInteractive ? " --yes" : ""}${options.framework ? ` --framework ${options.framework}` : ""} first.`,
+  )
+  await initCommand({
+    yes: nonInteractive,
+    registry: registryType,
+    framework: options.framework,
+    dir: options.dir,
+    registryUrl: options.registryUrl,
+    registryVersion: options.registryVersion,
+    strictCdn: options.strictCdn,
+  })
+  const config = await findConfig(registryType)
+  if (!config) throw new ConfigNotFoundError(registryType)
+  return config
 }
 
 async function addAllComponents(
@@ -521,6 +569,11 @@ function displayInstallationSummary(
 
   if (successful.length > 0) {
     logger.success(`\n🎉 ${CLI_MESSAGES.success.componentsInstalled}`)
+    const dirs = summarizeInstallDirs(writtenFiles)
+    if (dirs.length > 0) {
+      console.log("Installed into:")
+      dirs.forEach((d) => console.log(`  ${d}`))
+    }
     console.log("You can now import and use them in your project.")
   }
 
@@ -549,6 +602,7 @@ async function installPlannedFiles(
     }
     await fsEnsureDir(path.dirname(targetPath))
     await writeFile(targetPath, content, "utf-8")
+    writtenFiles.push(path.relative(process.cwd(), targetPath).split(path.sep).join("/"))
     record.push({ rel, content })
   }
   return record

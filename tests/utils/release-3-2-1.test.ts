@@ -14,12 +14,14 @@ import { logger } from "../../src/utils/logger.js"
 
 afterEach(() => vi.restoreAllMocks())
 
-describe("3.2.1: schema URL follows the CLI major", () => {
-  it("baseUrl and troubleshooting hint use @<cli major>", () => {
+describe("3.3.0: schemas are hosted with the registry; troubleshooting hint uses the CLI major", () => {
+  it("baseUrl is registry.buildy.tw/schema, config schema is config.json", () => {
     const major = getCliMajor()
     expect(major).not.toBe("")
-    expect(SCHEMA_CONFIG.baseUrl).toBe(`https://cdn.jsdelivr.net/npm/@ui8kit/registry@${major}/schema`)
-    expect(getSchemaUrl()).toContain(`@ui8kit/registry@${major}/schema/schema.json`)
+    expect(SCHEMA_CONFIG.baseUrl).toBe("https://registry.buildy.tw/schema")
+    expect(getSchemaUrl()).toBe("https://registry.buildy.tw/schema/config.json")
+    expect(getSchemaUrl("registry")).toBe("https://registry.buildy.tw/schema/registry.json")
+    expect(buildInitConfig({ yes: true, registry: "ui", framework: "react" }).$schema).toBe("https://registry.buildy.tw/schema/config.json")
     expect(CLI_MESSAGES.examples.troubleshooting.join("\n")).toContain(`@ui8kit/registry@${major}/r/<runtime>/index.json`)
   })
 })
@@ -74,5 +76,15 @@ describe("3.2.1: slot is React-only", () => {
   it("keeps slot for react / unknown runtime", () => {
     expect(dropReactOnlyItems(["slot"], "react")).toEqual(["slot"])
     expect(dropReactOnlyItems(["slot"], undefined)).toEqual(["slot"])
+  })
+})
+
+describe("3.3.0: add summary reports the real install folders", () => {
+  it("groups written files by install folder", async () => {
+    const { summarizeInstallDirs } = await import("../../src/commands/add.js")
+    expect(summarizeInstallDirs(["src/primitives/button/button.tsx", "src/primitives/button/button.shared.ts", "src/utils/cn.ts"])).toEqual([
+      "src/primitives/button/",
+      "src/utils/",
+    ])
   })
 })

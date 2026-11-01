@@ -1,7 +1,7 @@
 {
   "name": "ui8kit",
-  "version": "3.2.1",
-  "description": "CLI to install and maintain UI8Kit primitives registries (per-runtime: React, Vue, Svelte, Solid, Web Components, Templ, Twig, Latte, Jinja2; file-based)",
+  "version": "3.3.0",
+  "description": "CLI to install and maintain UI8Kit primitives registries (per-runtime: React, Vue, Svelte, Solid, Templ, Twig, Latte, Jinja2; file-based)",
   "type": "module",
   "bin": {
     "ui8kit": "./dist/index.js"
@@ -42,7 +42,6 @@
     "vue",
     "svelte",
     "solid",
-    "webcomponent",
     "web-components",
     "codegen",
     "registry",

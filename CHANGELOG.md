@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-02
+
+### Added
+- `add -y/--yes`, `add --framework <name>`, `add --dir <path>`: when `ui8kit.config.json` is missing, `add` now runs `init` first instead of failing (non-interactive with `-y`, `--framework` or without a TTY; interactive otherwise). `npx ui8kit add button -y --framework vue` works in an empty folder.
+- The `add` summary lists the folders actually written ("Installed into: src/primitives/button/ …").
+- JSON Schemas are hosted with the registry: `https://registry.buildy.tw/schema/{config,registry,registry-item}.json`.
+
+### Changed
+- `$schema` written by `init` / `build`: `https://registry.buildy.tw/schema/config.json` (config), `…/registry.json`, `…/registry-item.json` (was `cdn.jsdelivr.net/npm/@ui8kit/registry@3/schema/schema.json`). Old configs keep working.
+- `webcomponent` is experimental: registry.buildy.tw has no `r/webcomponent/`, so it is hidden from the `init` prompt and help, and `--framework/--runtime webcomponent` fails with a clear message. Opt in with `UI8KIT_EXPERIMENTAL=webcomponent` (e.g. against `@ui8kit/registry` on npm, which still ships it).
+
+### Fixed
+- Misleading verbose log "Loading button from /components/ui/": it now says it is the registry folder being fetched; the install path comes from the file targets under `config.dir`.
+
+### Docs
+- README / AGENTS / docs: 8 published runtimes (react, vue, svelte, solid, templ, twig, latte, jinja2), Web Components experimental; new schema URLs; `add -y --framework`.
+
 ## [3.2.1] - 2026-10-23
 
 ### Fixed

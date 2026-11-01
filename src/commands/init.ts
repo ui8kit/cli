@@ -13,6 +13,9 @@ import {
   type Runtime,
   FRAMEWORKS,
   RUNTIMES,
+  AVAILABLE_FRAMEWORKS,
+  experimentalRuntimeError,
+  isExperimentalRuntime,
 } from "../utils/schema-config.js"
 import { CLI_MESSAGES } from "../utils/cli-messages.js"
 import { handleError } from "../utils/errors.js"
@@ -86,8 +89,10 @@ function asFramework(value?: string): Framework {
 
 /** Explicit --framework / --runtime values must be known (no silent fallback). */
 export function assertKnownInitOptions(options: { framework?: string; runtime?: string }): void {
+  if (isExperimentalRuntime(options.framework)) throw experimentalRuntimeError(options.framework!, "--framework")
+  if (isExperimentalRuntime(options.runtime)) throw experimentalRuntimeError(options.runtime!, "--runtime")
   if (options.framework && !(FRAMEWORKS as readonly string[]).includes(options.framework)) {
-    throw new Error(`Unknown --framework "${options.framework}". Valid: ${FRAMEWORKS.join(", ")}`)
+    throw new Error(`Unknown --framework "${options.framework}". Valid: ${AVAILABLE_FRAMEWORKS.join(", ")}`)
   }
   if (options.runtime && !(RUNTIMES as readonly string[]).includes(options.runtime)) {
     throw new Error(`Unknown --runtime "${options.runtime}". Valid: ${RUNTIMES.join(", ")}`)
@@ -189,8 +194,8 @@ export async function initCommand(options: InitOptions) {
         type: "select",
         name: "framework",
         message: "Framework / stack",
-        choices: FRAMEWORKS.map((f) => ({ title: f, value: f })),
-        initial: Math.max(0, FRAMEWORKS.indexOf(asFramework(options.framework || detected))),
+        choices: AVAILABLE_FRAMEWORKS.map((f) => ({ title: f, value: f })),
+        initial: Math.max(0, AVAILABLE_FRAMEWORKS.indexOf(asFramework(options.framework || detected))),
       },
       {
         type: "text",

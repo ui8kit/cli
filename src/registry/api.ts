@@ -257,7 +257,7 @@ async function getComponentByType(
       return null
     }
 
-    logger.debug(`Loading ${name} from /${folder}/ (type: ${itemType})`)
+    logger.debug(`Fetching ${name} from registry folder ${folder}/ (type: ${itemType}); install path comes from each file target under config.dir`)
     const data = await fetchFromRegistryPath(`${folder}/${name}.json`, registryType, options)
     const base = getRegistryCache(scope).workingCDN
     const source: ComponentSource | undefined = base

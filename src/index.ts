@@ -85,7 +85,7 @@ program
   .description("Create ui8kit.config.json and install utils + agent rules (.cursor/rules)")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option("-r, --registry <type>", "Registry type", "ui")
-  .option("--framework <name>", "react|vue|svelte|solid|webcomponent|templ|latte|twig|jinja2|none")
+  .option("--framework <name>", "react|vue|svelte|solid|templ|latte|twig|jinja2|none (webcomponent: experimental, not in the registry yet)")
   .option("--runtime <name>", "Registry runtime (defaults to framework)")
   .option("--dir <path>", "Install root (src, web/src, internal, …)")
   .option("--skip-core", "Do not fetch utils/lib from registry on init")
@@ -100,6 +100,9 @@ program
   .description("Add components from the registry into app folders")
   .argument("[components...]", "Components to add")
   .option("-a, --all", "Install all available components")
+  .option("-y, --yes", "Non-interactive: if ui8kit.config.json is missing, run init with defaults first")
+  .option("--framework <name>", "Framework for the automatic init when there is no config (react|vue|svelte|solid|templ|latte|twig|jinja2)")
+  .option("--dir <path>", "Install root for the automatic init when there is no config (default: src)")
   .option("-f, --force", "Overwrite existing files")
   .option("-r, --registry <type>", "Registry type", "ui")
   .option(

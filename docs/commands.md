@@ -26,7 +26,7 @@ ui8kit init [options]
 |--------|-------------|
 | `-y, --yes` | Non-interactive defaults |
 | `-r, --registry <type>` | Registry type (default `ui`) |
-| `--framework <name>` | `react\|vue\|svelte\|solid\|webcomponent\|templ\|latte\|twig\|jinja2\|none` (server runtimes: no package.json, toolchain commands printed) |
+| `--framework <name>` | `react\|vue\|svelte\|solid\|templ\|latte\|twig\|jinja2\|none` (`webcomponent`: experimental, not in the registry yet; `UI8KIT_EXPERIMENTAL=webcomponent` to opt in) (server runtimes: no package.json, toolchain commands printed) |
 | `--runtime <name>` | Registry runtime (defaults to framework) |
 | `--dir <path>` | Install root |
 | `--skip-core` | Do not fetch utils/lib and agent rules on init |
@@ -40,7 +40,6 @@ ui8kit init [options]
 ```bash
 ui8kit init
 ui8kit init --yes --framework svelte --dir web/src
-ui8kit init --yes --framework webcomponent --dir src
 ui8kit init --yes --framework templ --dir internal   # go.mod module → utils import rewrite
 ui8kit init --yes --registry-url https://cdn.example.com/r --strict-cdn
 ```
@@ -57,6 +56,9 @@ ui8kit add [components...] [options]
 
 | Option | Description |
 |--------|-------------|
+| `-y, --yes` | Non-interactive: when `ui8kit.config.json` is missing, run `init --yes` first (also implied by `--framework` or a non-TTY) |
+| `--framework <name>` | Framework for that automatic `init` (ignored with a warning when a config exists) |
+| `--dir <path>` | Install root for that automatic `init` (default `src`) |
 | `-a, --all` | Install all listable components |
 | `-f, --force` | Overwrite existing files |
 | `-r, --registry <type>` | Registry type (default `ui`) |
@@ -72,6 +74,7 @@ ui8kit add [components...] [options]
 
 ```bash
 ui8kit add button
+ui8kit add button -y --framework vue   # fresh project: init + add in one step
 ui8kit add button card --force
 ui8kit add --all --runtime svelte
 ui8kit add button --dry-run
@@ -90,7 +93,7 @@ The 3.x registry is per-runtime (one runtime per item). Multi-stack items (2.0 d
 | `solid` | `*.solid.tsx` |
 | `svelte` | `*.svelte` |
 | `vue` | `*.vue` |
-| `webcomponent` | `*.wc.ts` |
+| `webcomponent` (experimental) | `*.wc.ts` |
 | `templ` | `*.templ`, `*_templ.go`, `*_gen.go` |
 | `latte` | `*.latte` |
 | `twig` | `*.twig` / `*.html.twig` |
