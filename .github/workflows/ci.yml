@@ -59,8 +59,17 @@ jobs:
             grep -q "\"source\": \"https://registry.buildy.tw/$1\"" "$d/ui8kit.lock.json"
             echo "ok $1 -> $2"
           }
-          check react  src/primitives/button/button.tsx
-          check vue    src/primitives/button/button.vue
+          # registry.buildy.tw since site c70e531: the kit primitive under kit/ui, its compose wrapper under compose/
+          check react  src/kit/ui/button/button.tsx
+          check react  src/compose/button.tsx
+          check vue    src/kit/ui/button/Button.vue
+          check vue    src/compose/Button.vue
           check templ  src/ui/button/button.templ
           check jinja2 src/ui/button/button.html.j2
+          # Select sizes pl-3 pr-2 (codegen 66736dd, @ui8kit/registry 3.3.1, kit-compose select recipe)
+          for rt in react vue templ jinja2; do
+            d="$(mktemp -d)"; (cd "$d" && node "$cli" add select -y --framework "$rt" >/dev/null)
+            grep -rq "pl-3 pr-2" "$d/src" || { echo "select of $rt has no pl-3 pr-2"; exit 1; }
+            echo "ok $rt select pl-3 pr-2"
+          done
           d="$(mktemp -d)"; if (cd "$d" && node "$cli" add button -y --framework webcomponent); then echo "webcomponent must be rejected"; exit 1; fi
