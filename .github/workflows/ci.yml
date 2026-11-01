@@ -28,6 +28,39 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run pack:check
+      - name: E2E against the synthetic fixture registry (built CLI)
+        run: node scripts/e2e-fixture-registry.mjs
       - name: Verify bin shebang
         shell: bash
         run: head -n 1 dist/index.js | grep -q '^#!/usr/bin/env node$'
+
+  live:
+    # Built CLI against the real default registry (registry.buildy.tw): add without init.
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm install
+      - run: npm run build
+      - name: add button -y --framework <rt> in fresh dirs (no init, no --registry-url)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli="$PWD/dist/index.js"
+          check() { # runtime, expected file
+            d="$(mktemp -d)"; (cd "$d" && node "$cli" add button -y --framework "$1")
+            test -f "$d/$2" || { echo "missing $2 for $1"; find "$d" -path "$d/node_modules" -prune -o -type f -print; exit 1; }
+            jq -e '.["$schema"] == "https://registry.buildy.tw/schema/config.json"' "$d/ui8kit.config.json"
+            grep -q "\"source\": \"https://registry.buildy.tw/$1\"" "$d/ui8kit.lock.json"
+            echo "ok $1 -> $2"
+          }
+          check react  src/primitives/button/button.tsx
+          check vue    src/primitives/button/button.vue
+          check templ  src/ui/button/button.templ
+          check jinja2 src/ui/button/button.html.j2
+          d="$(mktemp -d)"; if (cd "$d" && node "$cli" add button -y --framework webcomponent); then echo "webcomponent must be rejected"; exit 1; fi

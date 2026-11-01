@@ -1,0 +1,36 @@
+# Publishes ui8kit to npm when a tag v<version> is pushed. The tag must equal package.json "version".
+name: publish
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Tag matches package.json version
+        run: |
+          v="$(node -p 'require("./package.json").version')"
+          [ "${GITHUB_REF_NAME}" = "v$v" ] || { echo "tag ${GITHUB_REF_NAME} != v$v"; exit 1; }
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm test
+      - run: npm run build
+      - run: node scripts/e2e-fixture-registry.mjs
+      - name: Skip if this version is already on npm
+        id: exists
+        run: |
+          if npm view "ui8kit@$(node -p 'require("./package.json").version')" version >/dev/null 2>&1; then echo "published=1" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.exists.outputs.published != '1'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
