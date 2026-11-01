@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-02
+
+### Changed
+- **Default registry is `https://registry.buildy.tw/<runtime>`** (`SCHEMA_CONFIG.cdnBaseUrls = ["https://registry.buildy.tw"]`): `init` / `add` need no `--registry-url`. The npm mirrors of `@ui8kit/registry` (unpkg / jsDelivr, exported as `NPM_CDN_BASE_URLS`) are no longer tried automatically (older `ui/<name>/` layout); opt in with `--registry-url` or `config.cdnBaseUrls`.
+- Default install folders and `init` aliases follow the registry.buildy.tw layout: TS runtimes `@/ui` → `{dir}/primitives`, `@/lib` → `{dir}/presets`; server runtimes (templ, twig, latte, jinja2) `@/ui` → `{dir}/ui`, `@/lib` → `{dir}/blocks/presets` (`installFoldersFor(runtime)`). `reset` cleans `{dir}/presets`.
+- Troubleshooting hint points at `https://registry.buildy.tw/<runtime>/index.json` (npm mirror listed second).
+
+### Fixed
+- Intentional errors (e.g. the experimental `webcomponent` rejection) print `❌ <message>` without the extra "Unexpected error:" line.
+
 ## [3.3.0] - 2026-11-02
 
 ### Added

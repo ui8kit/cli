@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { getCdnUrls } from "../../src/utils/schema-config.js"
+import { NPM_CDN_BASE_URLS, getCdnUrls } from "../../src/utils/schema-config.js"
 
 type ApiModule = typeof import("../../src/registry/api.js")
 
@@ -30,8 +30,13 @@ describe("CDN resolution integration", () => {
     vi.restoreAllMocks()
   })
 
-  it("resolves CDN order with unpkg first, jsdelivr second", () => {
-    const urls = getCdnUrls("ui")
+  it("defaults to registry.buildy.tw only (npm mirrors are opt-in)", () => {
+    expect(getCdnUrls("ui", { runtime: "react" })).toEqual(["https://registry.buildy.tw/react"])
+    expect(getCdnUrls("ui", { runtime: "jinja2" })).toEqual(["https://registry.buildy.tw/jinja2"])
+  })
+
+  it("npm mirrors via cdnBaseUrls: unpkg first, jsdelivr second", () => {
+    const urls = getCdnUrls("ui", { cdnBaseUrls: [...NPM_CDN_BASE_URLS] })
     expect(urls[0]).toContain("unpkg.com")
     expect(urls[1]).toContain("cdn.jsdelivr.net")
     expect(urls).toHaveLength(2)
@@ -39,11 +44,11 @@ describe("CDN resolution integration", () => {
   })
 
   it("defaults to the CLI's major range instead of @latest", () => {
-    const urls = getCdnUrls("ui")
+    const urls = getCdnUrls("ui", { cdnBaseUrls: [...NPM_CDN_BASE_URLS] })
     expect(urls[0]).toMatch(/@ui8kit\/registry@\d+\/r$/)
     expect(urls.join()).not.toContain("@latest")
-    expect(getCdnUrls("ui", { registryVersion: "3.0.0" })[0]).toBe("https://unpkg.com/@ui8kit/registry@3.0.0/r")
-    expect(getCdnUrls("ui", { registryVersion: "canary", runtime: "react" })[1]).toBe(
+    expect(getCdnUrls("ui", { registryVersion: "3.0.0", cdnBaseUrls: [...NPM_CDN_BASE_URLS] })[0]).toBe("https://unpkg.com/@ui8kit/registry@3.0.0/r")
+    expect(getCdnUrls("ui", { registryVersion: "canary", runtime: "react", cdnBaseUrls: [...NPM_CDN_BASE_URLS] })[1]).toBe(
       "https://cdn.jsdelivr.net/npm/@ui8kit/registry@canary/r/react",
     )
   })
@@ -86,7 +91,7 @@ describe("CDN resolution integration", () => {
     })
 
     expect(calls[0]).toContain("bad-registry.example.com")
-    expect(calls[1]).toContain("unpkg.com")
+    expect(calls[1]).toContain("registry.buildy.tw")
     expect(calls).toHaveLength(2)
   })
 

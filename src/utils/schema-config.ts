@@ -124,13 +124,16 @@ export const TYPE_TO_PATH_KEY: Partial<Record<ComponentType, PathKey>> = {
 }
 
 /**
- * Default install folders under `dir`. Same as CANONICAL_PATHS (registry folder
- * layout) except `ui`: registry 3.x items target `ui/<name>/…`, so `add` writes
- * `{dir}/ui/…` and `@/ui` must point there.
+ * Default install folders under `dir`, matching the default registry
+ * (registry.buildy.tw): TS runtimes target `primitives/<name>/…` and
+ * `presets/…`, so `@/ui` → `{dir}/primitives`, `@/lib` → `{dir}/presets`.
+ * (Server runtimes target `ui/<name>/…`; their files are written to the
+ * registry `target`, aliases do not apply.)
  */
 export const DEFAULT_INSTALL_FOLDERS: Record<PathKey, string> = {
   ...CANONICAL_PATHS,
-  ui: "ui",
+  ui: "primitives",
+  lib: "presets",
 }
 
 /** Default install root (`init --dir` default). */
@@ -140,24 +143,45 @@ const DEFAULT_DIR = "src"
  * Directories under `dir` derived from DEFAULT_INSTALL_FOLDERS (single source for
  * `init`, schema defaults and fallbacks), e.g. `{ ui: "./src/ui", … }`.
  */
-export function buildDefaultDirectories(dir: string = DEFAULT_DIR): Record<"dir" | PathKey, string> {
+/** Server-template runtimes on registry.buildy.tw target `ui/<name>/…` and `blocks/presets/…`. */
+const SERVER_TEMPLATE_RUNTIMES = new Set(["templ", "latte", "twig", "jinja2"])
+const SERVER_INSTALL_FOLDERS: Record<PathKey, string> = { ...DEFAULT_INSTALL_FOLDERS, ui: "ui", lib: "blocks/presets" }
+
+/** Install folders for a runtime (registry.buildy.tw layout). */
+export function installFoldersFor(runtime?: string): Record<PathKey, string> {
+  return runtime && SERVER_TEMPLATE_RUNTIMES.has(runtime) ? SERVER_INSTALL_FOLDERS : DEFAULT_INSTALL_FOLDERS
+}
+
+export function buildDefaultDirectories(dir: string = DEFAULT_DIR, runtime?: string): Record<"dir" | PathKey, string> {
   const d = dir.replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "")
   const out = { dir: `./${d}` } as Record<"dir" | PathKey, string>
-  for (const [key, folder] of Object.entries(DEFAULT_INSTALL_FOLDERS) as Array<[PathKey, string]>) {
+  for (const [key, folder] of Object.entries(installFoldersFor(runtime)) as Array<[PathKey, string]>) {
     out[key] = `./${d}/${folder}`
   }
   return out
 }
 
 /** `@` aliases derived from DEFAULT_INSTALL_FOLDERS (`@/ui` → `./src/ui`). */
-export function buildDefaultAliases(dir: string = DEFAULT_DIR): Record<string, string> {
-  const dirs = buildDefaultDirectories(dir)
+export function buildDefaultAliases(dir: string = DEFAULT_DIR, runtime?: string): Record<string, string> {
+  const dirs = buildDefaultDirectories(dir, runtime)
   const out: Record<string, string> = { "@": dirs.dir }
   for (const key of Object.keys(DEFAULT_INSTALL_FOLDERS) as PathKey[]) {
     out[`@/${key}`] = dirs[key]
   }
   return out
 }
+
+/** Primary registry: `https://registry.buildy.tw/<runtime>/index.json`. */
+export const DEFAULT_REGISTRY_BASE = "https://registry.buildy.tw"
+
+/**
+ * npm mirrors of @ui8kit/registry. Not used by default (different, older layout:
+ * `ui/<name>/`); opt in via `--registry-url` or `config.cdnBaseUrls`.
+ */
+export const NPM_CDN_BASE_URLS = [
+  "https://unpkg.com/@ui8kit/registry@latest/r",
+  "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
+] as const
 
 export const SCHEMA_CONFIG = {
   schemaVersion: "http://json-schema.org/draft-07/schema#",
@@ -186,10 +210,7 @@ export const SCHEMA_CONFIG = {
    * `registryVersion` when set, otherwise to the CLI's own major range
    * (ui8kit 3.x → `@ui8kit/registry@3`), see getCdnUrls.
    */
-  cdnBaseUrls: [
-    "https://unpkg.com/@ui8kit/registry@latest/r",
-    "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r",
-  ] as readonly string[],
+  cdnBaseUrls: [DEFAULT_REGISTRY_BASE] as readonly string[],
 
   componentCategories: [
     "lib",

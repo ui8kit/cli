@@ -22,17 +22,18 @@ describe("3.3.0: schemas are hosted with the registry; troubleshooting hint uses
     expect(getSchemaUrl()).toBe("https://registry.buildy.tw/schema/config.json")
     expect(getSchemaUrl("registry")).toBe("https://registry.buildy.tw/schema/registry.json")
     expect(buildInitConfig({ yes: true, registry: "ui", framework: "react" }).$schema).toBe("https://registry.buildy.tw/schema/config.json")
-    expect(CLI_MESSAGES.examples.troubleshooting.join("\n")).toContain(`@ui8kit/registry@${major}/r/<runtime>/index.json`)
+    expect(CLI_MESSAGES.examples.troubleshooting.join("\n")).toContain("https://registry.buildy.tw/<runtime>/index.json")
   })
 })
 
 describe("3.2.1: default directories/aliases match init and add", () => {
-  it("SCHEMA_CONFIG defaults equal init's aliases (ui → {dir}/ui)", () => {
+  it("SCHEMA_CONFIG defaults equal init's aliases (ui → {dir}/primitives, lib → {dir}/presets)", () => {
     expect(SCHEMA_CONFIG.defaultAliases).toEqual(defaultAliasesForDir("src"))
-    expect(SCHEMA_CONFIG.defaultAliases["@/ui"]).toBe("./src/ui")
-    expect(SCHEMA_CONFIG.defaultDirectories.ui).toBe("./src/ui")
+    expect(SCHEMA_CONFIG.defaultAliases["@/ui"]).toBe("./src/primitives")
+    expect(SCHEMA_CONFIG.defaultAliases["@/lib"]).toBe("./src/presets")
+    expect(SCHEMA_CONFIG.defaultDirectories.ui).toBe("./src/primitives")
     expect(buildInitConfig({ yes: true, registry: "ui" }).aliases).toEqual(SCHEMA_CONFIG.defaultAliases)
-    expect(defaultAliasesForDir("web/src")["@/ui"]).toBe("./web/src/ui")
+    expect(defaultAliasesForDir("web/src")["@/ui"]).toBe("./web/src/primitives")
   })
 })
 
@@ -86,5 +87,13 @@ describe("3.3.0: add summary reports the real install folders", () => {
       "src/primitives/button/",
       "src/utils/",
     ])
+  })
+})
+
+describe("3.4.0: aliases follow the registry.buildy.tw layout per runtime", () => {
+  it("TS runtimes → primitives/presets, server runtimes → ui/blocks/presets", () => {
+    expect(buildInitConfig({ yes: true, registry: "ui", framework: "react" }).aliases["@/ui"]).toBe("./src/primitives")
+    expect(buildInitConfig({ yes: true, registry: "ui", framework: "templ" }).aliases["@/ui"]).toBe("./src/ui")
+    expect(buildInitConfig({ yes: true, registry: "ui", framework: "jinja2" }).aliases["@/lib"]).toBe("./src/blocks/presets")
   })
 })

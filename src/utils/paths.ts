@@ -250,6 +250,6 @@ export function inferTargetFromType(componentType: string): string {
   return TYPE_TO_FOLDER[componentType as ComponentType] || CANONICAL_PATHS.components
 }
 
-export function defaultAliasesForDir(dir: string): Record<string, string> {
-  return buildDefaultAliases(normalizeDir(dir))
+export function defaultAliasesForDir(dir: string, runtime?: string): Record<string, string> {
+  return buildDefaultAliases(normalizeDir(dir), runtime)
 }

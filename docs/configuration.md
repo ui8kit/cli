@@ -97,7 +97,7 @@ Caveat: the CLI does not rewrite relative imports. Remap to folders at the same 
   "@/lib": "./src/lib",
   "@/utils": "./src/utils",
   "@/components": "./src/components",
-  "@/ui": "./src/ui",
+  "@/ui": "./src/primitives",
   "@/blocks": "./src/blocks",
   "@/layouts": "./src/layouts",
   "@/variants": "./src/variants",

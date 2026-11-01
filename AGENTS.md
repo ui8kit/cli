@@ -7,10 +7,10 @@
 > - [github.com/ui8kit/registry](https://github.com/ui8kit/registry) — packed per-runtime registry on npm/CDN — [npm `@ui8kit/registry`](https://www.npmjs.com/package/@ui8kit/registry)
 > - [github.com/ui8kit/cli](https://github.com/ui8kit/cli) — installer `ui8kit` — [npm `ui8kit`](https://www.npmjs.com/package/ui8kit)  ← **you are here**
 >
-> Pipeline: codegen (spec → `generated/`) → registry (pack `r/<rt>/`) → CDN (unpkg / jsDelivr) → cli (`init` / `add`) → app
+> Pipeline: codegen (spec → `generated/`) → registry (`r/<rt>/`, served at registry.buildy.tw; npm mirror `@ui8kit/registry`) → cli (`init` / `add`) → app
 <!-- ui8kit-ecosystem:end -->
 
-npm package **`ui8kit`** (bin `ui8kit`): installs registry JSON from `@ui8kit/registry@<CLI major>/r/<runtime>/` into app source trees.
+npm package **`ui8kit`** (bin `ui8kit`): installs registry JSON from `https://registry.buildy.tw/<runtime>/` (default since 3.4; npm mirror `@ui8kit/registry@<CLI major>/r/<runtime>/` opt-in) into app source trees.
 
 ## Stack
 
@@ -39,10 +39,10 @@ Update `CHANGELOG.md`, README / `docs/` when behavior changes. CI runs Linux (No
 ## Facts to keep straight
 
 - Primitive names are never hard-coded in the CLI: `add --all` installs whatever the registry index lists (registry 3.2.0: 19 primitives — box, text, button, link, label, form, input, textarea, select, checkbox, radio, switch, image, icon, dialog, disclosure, meter, progress, separator; `slot` React-only).
-- `init` aliases come from `DEFAULT_INSTALL_FOLDERS` (`@/ui` → `./src/ui`, where `add` writes); covered by `tests/utils/release-3-2-1.test.ts`.
+- `init` aliases come from `DEFAULT_INSTALL_FOLDERS` (`@/ui` → `./src/primitives` for TS runtimes, `./src/ui` for server runtimes; `@/lib` → `./src/presets` / `./src/blocks/presets`; see `installFoldersFor`); covered by `tests/utils/release-3-2-1.test.ts`.
 
 - Registry `>= 3` is per-runtime: `r/{react,vue,svelte,solid,templ,latte,twig,jinja2}/` (`webcomponent` experimental: hidden, rejected unless `UI8KIT_EXPERIMENTAL=webcomponent`). Default version = CLI major (`@3`), not `@latest`.
-- Bricks install to `{dir}/ui/<brick>/`; utils to `{dir}/utils` (bricks import `../../utils`).
+- Bricks install to `{dir}/primitives/<brick>/` (TS) or `{dir}/ui/<brick>/` (server runtimes), following registry `target`s; utils to `{dir}/utils` (bricks import `../../utils`).
 - `registry:rules` is installed by `init` only, to `.cursor/rules/ui8kit-primitives.mdc` (`{kit}`, `{globs}` substituted).
 - templ/latte/twig/jinja2 are first-class 3.x runtimes (`r/<runtime>/`), see `src/utils/server-runtime.ts`:
   - no `package.json` is created or required; item npm `dependencies` are never npm-installed for them;
@@ -133,9 +133,10 @@ Global: `-c, --cwd <dir>`, `-v, --verbose`, `--no-cache`, `-V, --version`.
 
 ## Where registries live
 
-- **Default**: `@ui8kit/registry@<CLI major>` from npm via CDN, tried in order **unpkg → jsDelivr**:
-  - `https://unpkg.com/@ui8kit/registry@3/r/<runtime>/index.json`
-  - `https://cdn.jsdelivr.net/npm/@ui8kit/registry@3/r/<runtime>/index.json`
+- **Default (3.4+)**: **`https://registry.buildy.tw/<runtime>/`** — no `--registry-url` needed:
+  - `https://registry.buildy.tw/<runtime>/index.json` (`react`, `vue`, `svelte`, `solid`, `templ`, `twig`, `latte`, `jinja2`)
+  - Layout: TS runtimes → `{dir}/primitives/<name>/`, `{dir}/presets/`, `{dir}/components/`, `{dir}/blocks/`, `{dir}/utils/`; server runtimes → `{dir}/ui/<name>/`, `{dir}/blocks/…`, helpers. `init` writes matching aliases (`@/ui` → `./src/primitives` for TS, `./src/ui` for templ/twig/latte/jinja2).
+- **npm mirror (opt-in)**: `@ui8kit/registry@<CLI major>` on unpkg / jsDelivr (older layout `{dir}/ui/<name>/`): `--registry-url https://unpkg.com/@ui8kit/registry@3/r/<runtime>` or `"cdnBaseUrls": ["https://unpkg.com/@ui8kit/registry@latest/r", "https://cdn.jsdelivr.net/npm/@ui8kit/registry@latest/r"]` (`@latest` → CLI major, `/<runtime>` appended). It is no longer tried automatically (different layout, no silent mixing).
 - **Per runtime** (`react`, `vue`, `svelte`, `solid`, `templ`, `twig`, `latte`, `jinja2`; `webcomponent` is experimental) under `r/<runtime>/`:
   - `index.json` — catalogue
   - `components/ui/<name>.json` — primitives (e.g. `button.json`)
@@ -151,7 +152,7 @@ Global: `-c, --cwd <dir>`, `-v, --verbose`, `--no-cache`, `-V, --version`.
 ### `slot` is React-only
 
 `slot` (Slot / `asChild`) exists only in `r/react`; React bricks pull it in via `registryDependencies`. Other runtimes compose with their native mechanism (slots/children), so `add slot --runtime vue` (or any non-React runtime) prints a clear "React-only" error and skips it.
-- **Resolution order**: `--registry-url` / `registryUrl` → `cdnBaseUrls` (config) → built-in unpkg / jsDelivr. With `--strict-cdn` (or `strictCdn`) and an explicit URL, only that URL is used.
+- **Resolution order**: `--registry-url` / `registryUrl` → `cdnBaseUrls` (config) → built-in `https://registry.buildy.tw/<runtime>` (npm mirrors only when listed in `cdnBaseUrls` or passed as `--registry-url`). With `--strict-cdn` (or `strictCdn`) and an explicit URL, only that URL is used.
 - **Brand registries**: `@ui8kit/registry` ships **primitives only**. Brand kits (blocks, composites) host their own registry, e.g. `--registry-url https://registry.buildy.tw/react`, and reference primitives by absolute URL in `registryDependencies` (pinned digest, recorded in `meta.primitives`). Brand items get their own lock entries.
 - **Lock**: `init` / `add` write `ui8kit.lock.json` (source URL, exact version, sha256 per file). Commit it; verify with `npx ui8kit@3 check` (offline, exit 1 on `missing` / `modified` / `mixed-versions` / `rules-version`). No lock yet → `npx ui8kit@3 check --adopt` once.
 
@@ -160,7 +161,7 @@ Global: `-c, --cwd <dir>`, `-v, --verbose`, `--no-cache`, `-V, --version`.
 ```
 codegen  specs/ + bricks/ ─gen─▶ generated/<rt>/   (build output, NOT committed)
 registry pack:runtimes  ──────────▶ r/<rt>/*.json     (published: @ui8kit/registry)
-npm ──▶ unpkg / jsDelivr ──▶ cli: ui8kit init / add ──▶ app {dir}/ui, {dir}/utils + ui8kit.lock.json
+registry.buildy.tw/<rt> ──▶ cli: ui8kit init / add ──▶ app {dir}/primitives (TS) or {dir}/ui (server), {dir}/utils + ui8kit.lock.json
 ```
 
 Fix a primitive in **codegen**, repack in **registry**, publish, then `add <name> --force` in the app. Never fix it in the app or in `r/` by hand.

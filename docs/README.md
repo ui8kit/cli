@@ -1,6 +1,6 @@
 # ui8kit CLI documentation
 
-ui8kit **3.x** · registry `@ui8kit/registry@3` (per-runtime `r/<runtime>/`) · config contract `2.0.0` · Node.js `>=20`
+ui8kit **3.x** · default registry `https://registry.buildy.tw/<runtime>` (npm mirror `@ui8kit/registry@3` opt-in) · config contract `2.0.0` · Node.js `>=20`
 
 `ui8kit` is a **file-based registry CLI** (shadcn-style): it fetches registry items from a CDN (or local server) and **writes source files into your app**. It does not treat `node_modules` as the kit source of truth, so Tailwind and bundlers see real classes and files.
 

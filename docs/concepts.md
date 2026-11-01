@@ -67,7 +67,7 @@ Logical names stay stable; physical folders can move via `paths`:
 }
 ```
 
-Install of `registry:ui` then lands under `web/src/kit/…` instead of `web/src/ui/…`. Keep `utils` at `{dir}/utils`: bricks import `../../utils`.
+Install of `registry:ui` then lands under `web/src/kit/…` instead of `web/src/primitives/…`. Keep `utils` at `{dir}/utils`: bricks import `../../utils`.
 
 ## Install path rules
 
@@ -81,7 +81,7 @@ Example install:
 
 ```text
 target: ui/button/button.svelte
-→ {dir}/ui/button/button.svelte
+→ {dir}/primitives/button/button.svelte
 ```
 
 ## Registry dependencies

@@ -109,7 +109,7 @@ describe("registryUrl / strictCdn keep working", () => {
       cdn: { registryUrl: "http://registry.invalid/svelte" },
     })
     expect(urls[0]).toMatch(/^http:\/\/registry\.invalid\/svelte\//)
-    expect(urls.some((u) => u.includes("unpkg.com") || u.includes("jsdelivr"))).toBe(true)
+    expect(urls.some((u) => u.startsWith("https://registry.buildy.tw/"))).toBe(true)
   })
 
   it("two registryUrls do not share the on-disk item cache", async () => {

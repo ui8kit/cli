@@ -62,7 +62,7 @@ describe("reset command", () => {
     const registrySchema = path.join(registryDir, "schema", "registry.json")
     const registryIndex = path.join(registryDir, "r", "index.json")
     const componentDir = path.join(fixture, "src", "components", "ui")
-    const libDir = path.join(fixture, "src", "lib")
+    const libDir = path.join(fixture, "src", "presets")
     const configPath = path.join(fixture, "ui8kit.config.json")
 
     await ensureDir(path.dirname(registrySchema))

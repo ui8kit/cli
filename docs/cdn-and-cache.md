@@ -1,5 +1,9 @@
 # CDN and cache
 
+> **3.4+:** the built-in default is `https://registry.buildy.tw` (→ `https://registry.buildy.tw/<runtime>`). The npm mirrors
+> (`unpkg.com` / `cdn.jsdelivr.net` `@ui8kit/registry`) below are opt-in via `--registry-url` or `cdnBaseUrls`; version
+> rewriting (`@latest` → CLI major) applies only to them.
+
 ## Registry base URL
 
 A **base** is a URL that already points at the `/r` tree (no trailing slash required):

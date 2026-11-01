@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { getCdnUrls, isPerRuntimeRegistryVersion } from "../../src/utils/schema-config.js"
+import { NPM_CDN_BASE_URLS, getCdnUrls, isPerRuntimeRegistryVersion } from "../../src/utils/schema-config.js"
 import { buildInitConfig, renderRulesContent } from "../../src/commands/init.js"
 
 describe("per-runtime registry (digest >= 3)", () => {
@@ -14,14 +14,16 @@ describe("per-runtime registry (digest >= 3)", () => {
   })
 
   it("appends /<runtime> to default CDN bases for 3.x, keeps explicit URL as-is", () => {
-    const urls = getCdnUrls("ui", { registryVersion: "3.0.0", runtime: "vue", registryUrl: "http://localhost:4000/r/vue" })
+    const urls = getCdnUrls("ui", { registryVersion: "3.0.0", runtime: "vue", registryUrl: "http://localhost:4000/r/vue", cdnBaseUrls: [...NPM_CDN_BASE_URLS] })
     expect(urls[0]).toBe("http://localhost:4000/r/vue")
     expect(urls).toContain("https://unpkg.com/@ui8kit/registry@3.0.0/r/vue")
-    expect(getCdnUrls("ui", { registryVersion: "2.0.0", runtime: "vue" })).toContain(
+    expect(getCdnUrls("ui", { registryVersion: "2.0.0", runtime: "vue", cdnBaseUrls: [...NPM_CDN_BASE_URLS] })).toContain(
       "https://unpkg.com/@ui8kit/registry@2.0.0/r",
     )
     // default = CLI major range (3.x CLI → @3, per-runtime)
-    expect(getCdnUrls("ui", { runtime: "vue" })).toContain("https://unpkg.com/@ui8kit/registry@3/r/vue")
+    expect(getCdnUrls("ui", { runtime: "vue", cdnBaseUrls: [...NPM_CDN_BASE_URLS] })).toContain("https://unpkg.com/@ui8kit/registry@3/r/vue")
+    // default registry: registry.buildy.tw/<runtime>
+    expect(getCdnUrls("ui", { runtime: "vue" })).toEqual(["https://registry.buildy.tw/vue"])
   })
 })
 

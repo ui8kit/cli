@@ -79,8 +79,14 @@ export function handleError(error: unknown): never {
     process.exit(1)
   }
 
-  console.error("❌ Unexpected error:")
-  console.error((error as Error).message ?? String(error))
+  const message = (error as Error)?.message ?? String(error)
+  // Plain Error thrown on purpose (validation, experimental runtime): print the message only.
+  if (error instanceof Error && error.constructor === Error) {
+    console.error(`❌ ${message}`)
+  } else {
+    console.error("❌ Unexpected error:")
+    console.error(message)
+  }
   process.exit(1)
 }
 

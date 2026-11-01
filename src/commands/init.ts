@@ -111,9 +111,9 @@ function asRuntime(value?: string, framework?: Framework): Runtime | undefined {
 
 export function buildInitConfig(options: InitConfigOptions): Config {
   const dir = normalizeDir(options.dir || SCHEMA_CONFIG.defaultDir)
-  const aliases = defaultAliasesForDir(dir)
   const framework = asFramework(options.framework)
   const runtime = asRuntime(options.runtime, framework)
+  const aliases = defaultAliasesForDir(dir, runtime)
   const importStyle = resolveImportStyle(options.importStyle)
   if (importStyle === "package") {
     logger.warn('--import-style package (@ui8kit/core) is deprecated and will be removed; use "alias".')
