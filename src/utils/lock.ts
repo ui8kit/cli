@@ -185,3 +185,24 @@ export async function updateLock(entries: LockEntryInput[], cwd = process.cwd())
   await fs.writeFile(lockPath(cwd), serializeLock(lock), "utf-8")
   return lock
 }
+
+/**
+ * Registry source recorded in an existing lock when it is a different registry (identity) than every one of
+ * `defaultBases`, e.g. a project installed by ui8kit 3.3 from `npm:@ui8kit/registry` while ui8kit 3.4 defaults to
+ * `registry.buildy.tw`. The two registries ship different layouts (3.3: utils with `safeRest` at `<dir>/utils`;
+ * registry.buildy.tw: primitives' utils at `<dir>/kit/utils`, compose helpers at `<dir>/utils`), so silently
+ * switching overwrites the utils the installed primitives import. The `utils` item wins, else the most common source.
+ */
+export function pinnedLockSource(lock: LockFile | null, defaultBases: string[]): string | undefined {
+  const items = Object.values(lock?.items ?? {}).filter((i) => i.type !== "registry:rules" && i.source?.includes("://"))
+  if (items.length === 0) return undefined
+  const defaults = new Set(defaultBases.map((b) => registryIdentity(b).identity))
+  const utils = items.find((i) => i.name === "utils")
+  let source = utils?.source
+  if (!source) {
+    const count = new Map<string, number>()
+    for (const i of items) count.set(i.source, (count.get(i.source) ?? 0) + 1)
+    source = [...count.entries()].sort((a, b) => b[1] - a[1])[0]![0]
+  }
+  return defaults.has(registryIdentity(source).identity) ? undefined : source
+}

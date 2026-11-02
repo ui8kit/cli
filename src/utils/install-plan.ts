@@ -65,7 +65,24 @@ export function planItemFiles(
       ? applyTransforms(file.content || "", config.aliases, config.importStyle || "alias")
       : isTempl && isGoSourceFile(rel)
         ? transformTemplContent(file.content || "", component, config, opts.cwd)
-        : file.content || ""
+        : rel.endsWith(".css")
+          ? stripEscapingCssSources(file.content || "", rel)
+          : file.content || ""
     return { file, rel, content }
+  })
+}
+
+/**
+ * Drop Tailwind `@source "<path>"` lines whose relative path leaves the project root once the file sits at
+ * `rel` (e.g. `@source "../../../kit/react/src"` from the registry's source monorepo, installed at
+ * `src/styles/index.css`). Such a path points at a folder of the registry author, never at the user's project.
+ * Paths inside the project, absolute paths, globs from packages (`@source "../node_modules/..."`) stay.
+ */
+export function stripEscapingCssSources(content: string, rel: string): string {
+  const fileDir = path.posix.dirname(toPosix(rel))
+  return content.replace(/^[ \t]*@source\s+(?:not\s+)?(["'])([^"']+)\1\s*;[ \t]*(?:\r?\n)?/gm, (line, _q, src: string) => {
+    if (!src.startsWith(".")) return line
+    const resolved = path.posix.normalize(path.posix.join(fileDir, src))
+    return resolved === ".." || resolved.startsWith("../") ? "" : line
   })
 }

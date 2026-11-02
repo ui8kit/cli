@@ -13,7 +13,7 @@ import { normalizeDependencyName, resolveRegistryTreeDetailed } from "../utils/d
 import { handleError, ConfigNotFoundError } from "../utils/errors.js"
 import { buildUnifiedDiff, formatDiffPreview, hasDiff } from "../utils/diff-utils.js"
 import { planItemFiles, type PlannedFile } from "../utils/install-plan.js"
-import { exactVersion, updateLock, type LockEntryInput } from "../utils/lock.js"
+import { exactVersion, pinnedLockSource, readLock, updateLock, type LockEntryInput } from "../utils/lock.js"
 import {
   inferTargetFromType,
   resolveFileInstallPath,
@@ -117,7 +117,10 @@ export async function addCommand(components: string[], options: AddOptions) {
     assertKnownRuntime(config.runtime, "config runtime")
 
     const cdnResolution: CdnResolutionOptions = {
-      registryUrl: options.registryUrl || config.registryUrl,
+      registryUrl:
+        options.registryUrl ||
+        config.registryUrl ||
+        pinnedLockSource(await readLock(), getCdnUrls(registryType, { runtime: options.runtime || config.runtime, cdnBaseUrls: config.cdnBaseUrls })),
       registryVersion: options.registryVersion || config.registryVersion,
       strictCdn: options.strictCdn ?? config.strictCdn,
       cdnBaseUrls: config.cdnBaseUrls,

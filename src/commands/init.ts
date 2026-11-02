@@ -29,7 +29,8 @@ import {
 import { detectFrameworkHint, findConfig, saveConfig, hasPackageJson } from "../utils/project.js"
 import { ensureDir as fsEnsureDir, writeFile, writeJson } from "../utils/fs.js"
 import { planItemFiles, renderRulesContent } from "../utils/install-plan.js"
-import { exactVersion, updateLock, type LockEntryInput } from "../utils/lock.js"
+import { exactVersion, pinnedLockSource, readLock, updateLock, type LockEntryInput } from "../utils/lock.js"
+import fs from "fs"
 import { collectToolchainHints, isServerRuntime, printToolchainHints } from "../utils/server-runtime.js"
 
 export { renderRulesContent }
@@ -253,6 +254,18 @@ export async function initCommand(options: InitOptions) {
     )
   }
 
+  // Never switch the registry of an installed project silently: keep the source its lock records.
+  if (!config.registryUrl) {
+    const pinned = pinnedLockSource(await readLock(), getCdnUrls(registryName as RegistryType, { runtime: config.runtime }))
+    if (pinned) {
+      config.registryUrl = pinned
+      logger.warn(
+        `ui8kit.lock.json records items from ${pinned}: keeping that registry (registryUrl) so utils stay compatible ` +
+          `with the installed primitives. Pass --registry-url to switch (then re-add the primitives with --force).`,
+      )
+    }
+  }
+
   const spinner = new Spinner(CLI_MESSAGES.info.initializing(registryName)).start()
 
   try {
@@ -270,6 +283,12 @@ export async function initCommand(options: InitOptions) {
         cdnBaseUrls: config.cdnBaseUrls,
         runtime: config.runtime,
       }))
+    }
+
+    const css = pickGlobalCss(config.globalCss, written)
+    if (css !== config.globalCss) {
+      config.globalCss = css
+      await saveConfig(config)
     }
 
     spinner.succeed(CLI_MESSAGES.success.initialized(registryName))
@@ -421,4 +440,15 @@ async function writePlannedFiles(component: Component, config: Config): Promise<
     await writeFile(targetPath, content, "utf-8")
   }
   return planned.map(({ rel, content }) => ({ rel, content }))
+}
+
+/**
+ * `globalCss` must name a file of the project. When the configured one does not exist and the registry just
+ * installed a styles entry (`<dir>/styles/index.css`, else the only `index.css`), point at that entry.
+ */
+export function pickGlobalCss(globalCss: string, written: string[], cwd = process.cwd()): string {
+  if (globalCss && fs.existsSync(path.join(cwd, globalCss))) return globalCss
+  const css = written.filter((f) => f.endsWith(".css"))
+  const entry = css.find((f) => /(^|\/)styles\/index\.css$/.test(f)) ?? (css.filter((f) => f.endsWith("/index.css")).length === 1 ? css.find((f) => f.endsWith("/index.css")) : undefined)
+  return entry ?? globalCss
 }

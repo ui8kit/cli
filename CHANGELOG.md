@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- `init` / `add` keep the registry an installed project was set up from (alexy-os/chaosbun#123): when `ui8kit.lock.json` records items from another registry than the default (e.g. `npm:@ui8kit/registry` from ui8kit 3.3), `init` writes that source as `registryUrl` and `add` uses it, instead of silently switching to registry.buildy.tw, whose `utils` item writes compose helpers without `safeRest` over `{dir}/utils` and broke the installed 3.3 primitives. `--registry-url` still switches explicitly.
+- Installed CSS no longer carries `@source` paths that leave the project root (registry source-monorepo paths such as `@source "../../../kit/react/src"` are dropped at install; project paths stay).
+- `init` sets `globalCss` to the installed styles entry (`{dir}/styles/index.css`) when the default `src/index.css` does not exist.
+
 ## [3.4.0] - 2026-11-02
 
 ### Changed
