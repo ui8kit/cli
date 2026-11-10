@@ -40,6 +40,7 @@ Folder mapping used by `build` / fetchers:
 | `registry:utils` | `utils` |
 | `registry:variants` | `components/variants` |
 | `registry:widget` | `widgets` |
+| `registry:theme` | `themes` (files install under `{dir}/styles/skins/`, remap `paths.themes`; 3.5.0+) |
 
 Example item:
 

@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-10
+
+### Added
+- Item type `registry:theme` (alexy-os/chaosbun#143): skins as registry items. `npx ui8kit add theme-<skin>` writes the skin tokens CSS (registry target `styles/skins/<skin>.css`, plus `theme-base`: `styles/skins/base.css` and the licences in `NOTICE.md`) and records them in `ui8kit.lock.json` like any item. Registry folder `themes/` (`r/<runtime>/themes/<name>.json`). After the install the CLI prints how to turn the skin on: import the file after `globalCss` and set `data-skin="<skin>"` on `<html>`. The CLI never edits the app entry or the kit CSS, so `check` stays clean.
+- `paths.themes` (and `--path themes=<dir>`) remaps the skin folder; `init` neither creates it nor writes an alias, so `ui8kit.config.json` from `init` is unchanged.
+
+### Changed
+- `add --all` and the interactive picker leave `registry:theme` items out (one skin is a choice, not part of "everything"); `list` shows them.
+
+Older CLIs (<= 3.4.1) skip theme items in `add --all` (unknown type) and report `add theme-<skin>` as not found; use 3.5.0 to install a skin.
+
 ## [3.4.1] - 2026-11-02
 
 ### Fixed

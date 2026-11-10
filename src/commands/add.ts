@@ -24,6 +24,7 @@ import { ensureDir as fsEnsureDir, pathExists, readFile, writeFile } from "../ut
 import { assertKnownRuntime } from "../utils/runtime-files.js"
 import { initCommand } from "./init.js"
 import { collectToolchainHints, isServerRuntime, printToolchainHints } from "../utils/server-runtime.js"
+import { collectThemeHints, printThemeHints } from "../utils/theme-hints.js"
 
 interface AddOptions {
   /** Non-interactive: auto-init without prompts when ui8kit.config.json is missing. */
@@ -52,7 +53,8 @@ interface AddOptions {
  * Hidden from catalogs only (interactive picker, `--all`). Never applied to
  * explicit names or `registryDependencies`, so `utils` and `lib/*` resolve.
  */
-const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils", "registry:rules"]
+// Themes are a choice (one skin per app), so `--all` and the picker leave them out; `add theme-<skin>` installs one.
+const ADD_EXCLUDED_COMPONENT_TYPES = ["registry:variants", "registry:lib", "registry:utils", "registry:rules", "registry:theme"]
 
 /** Options for fetching a single item by name: no catalog exclusions. */
 function fetchOptions<T extends { excludeTypes: string[]; cdn?: CdnResolutionOptions }>(requestOptions: T, registryBase?: string): T {
@@ -554,6 +556,7 @@ async function installRequestedComponents(
       logger.warn(`Could not update ui8kit.lock.json: ${(error as Error).message}`)
     }
     printToolchainHints(collectToolchainHints(installed, config), logger)
+    printThemeHints(collectThemeHints(installed, config), config.globalCss)
   }
   return [...missingResults, ...processingResults]
 }

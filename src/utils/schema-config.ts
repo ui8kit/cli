@@ -74,6 +74,7 @@ export const COMPONENT_TYPES = [
   "registry:variants",
   "registry:widget",
   "registry:rules",
+  "registry:theme",
 ] as const
 
 export type ComponentType = (typeof COMPONENT_TYPES)[number]
@@ -95,6 +96,13 @@ export const CANONICAL_PATHS = {
 
 export type PathKey = keyof typeof CANONICAL_PATHS
 
+/**
+ * Install folder of `registry:theme` files under `{dir}` (registry targets `styles/skins/<file>`), remapped by
+ * `paths.themes`. Not a canonical folder: `init` neither creates it nor writes an alias for it.
+ */
+export const THEME_TARGET_PREFIX = "styles/skins"
+export const THEME_PATH_KEY = "themes"
+
 /** Map registry item type → canonical path key / folder under dir */
 export const TYPE_TO_FOLDER: Record<ComponentType, string> = {
   "registry:lib": CANONICAL_PATHS.lib,
@@ -108,6 +116,8 @@ export const TYPE_TO_FOLDER: Record<ComponentType, string> = {
   "registry:widget": CANONICAL_PATHS.widgets,
   /** Agent rules: registry folder `rules/`; installed by `init` under the app root (`.cursor/rules/`). */
   "registry:rules": "rules",
+  /** Skins (tokens CSS): registry folder `themes/`; files install under `{dir}/styles/skins/` (remap: `paths.themes`). */
+  "registry:theme": "themes",
 }
 
 /** `registry:rules` has no install folder under `dir` (see `init`). */

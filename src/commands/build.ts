@@ -25,6 +25,7 @@ const BUILD_OUTPUT_FOLDERS = {
   "registry:variants": "components/variants",
   "registry:widget": "widgets",
   "registry:rules": "rules",
+  "registry:theme": "themes",
 } as const
 
 export async function buildCommand(

@@ -62,6 +62,8 @@ const pathsSchema = z
     layouts: z.string().optional(),
     variants: z.string().optional(),
     widgets: z.string().optional(),
+    /** registry:theme files (default `styles/skins`) */
+    themes: z.string().optional(),
   })
   .optional()
 

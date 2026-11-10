@@ -1,6 +1,8 @@
 import path from "path"
 import {
   CANONICAL_PATHS,
+  THEME_PATH_KEY,
+  THEME_TARGET_PREFIX,
   TYPE_TO_FOLDER,
   TYPE_TO_PATH_KEY,
   buildDefaultAliases,
@@ -64,6 +66,13 @@ function configuredPath(key: PathKey, config: Config): string | undefined {
 export function mapTargetByPaths(target: string, componentType: string, config: Config): string {
   if (!config.paths) return target
 
+  // registry:theme files (`styles/skins/...`) follow `paths.themes`
+  if (target === THEME_TARGET_PREFIX || target.startsWith(THEME_TARGET_PREFIX + "/")) {
+    const themes = config.paths[THEME_PATH_KEY]
+    const mapped = themes && themes.trim() ? normalizeDir(themes) : undefined
+    return mapped ? joinTarget(mapped, target.slice(THEME_TARGET_PREFIX.length)) : target
+  }
+
   for (const [prefix, key] of TARGET_PREFIX_KEYS) {
     if (target === prefix || target.startsWith(prefix + "/")) {
       const mapped = configuredPath(key, config)
@@ -89,7 +98,7 @@ function joinTarget(folder: string, rest: string): string {
  */
 export function applyPathOverrides(config: Config, flags?: readonly string[]): Config {
   if (!flags || flags.length === 0) return config
-  const validKeys = Object.keys(CANONICAL_PATHS)
+  const validKeys = [...Object.keys(CANONICAL_PATHS), THEME_PATH_KEY]
   const overrides: Record<string, string> = {}
   for (const flag of flags) {
     const eq = flag.indexOf("=")

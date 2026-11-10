@@ -63,7 +63,7 @@ ui8kit add [components...] [options]
 | `-f, --force` | Overwrite existing files |
 | `-r, --registry <type>` | Registry type (default `ui`) |
 | `--runtime <name>` | Install only this runtime’s files (+ shared); skip items with a mismatched `runtime` field |
-| `--path <key=dir>` | Override an install folder for this run (repeatable), e.g. `--path ui=kit`. Beats `config.paths` and registry `target`s. Keys: `lib`, `utils`, `components`, `ui`, `blocks`, `layouts`, `variants`, `widgets` |
+| `--path <key=dir>` | Override an install folder for this run (repeatable), e.g. `--path ui=kit`. Beats `config.paths` and registry `target`s. Keys: `lib`, `utils`, `components`, `ui`, `blocks`, `layouts`, `variants`, `widgets`, `themes` |
 | `--dry-run` | Plan only; no writes |
 | `--retry` | Retry failed CDN requests |
 | `--registry-url <url>` | Registry base override |

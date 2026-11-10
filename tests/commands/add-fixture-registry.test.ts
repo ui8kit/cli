@@ -142,3 +142,34 @@ describe.each(["svelte", "react"])("add against the fixture registry (%s)", (rt)
     expect(findUnresolvedImports(path.join(project, "src")).bad).toEqual([])
   })
 })
+
+describe("registry:theme items (chaosbun#143)", () => {
+  it("add theme-<skin> writes the skin CSS and theme-base under styles/skins, records both in the lock and prints how to turn it on", async () => {
+    writeConfig("svelte", { globalCss: "src/styles/index.css" })
+    await addCommand(["theme-ocean"], { force: true, cache: false })
+    expect(fs.readFileSync(path.join(project, "src/styles/skins/ocean.css"), "utf8")).toContain('[data-skin="ocean"]')
+    expect(has("src/styles/skins/base.css")).toBe(true)
+    expect(has("src/styles/skins/NOTICE.md")).toBe(true)
+    const lock = JSON.parse(fs.readFileSync(path.join(project, "ui8kit.lock.json"), "utf8"))
+    const entry = (n: string) => Object.values(lock.items as Record<string, any>).find((i) => i.name === n)
+    expect(entry("theme-ocean").type).toBe("registry:theme")
+    expect(Object.keys(entry("theme-ocean").files)).toEqual(["src/styles/skins/ocean.css"])
+    expect(Object.keys(entry("theme-base").files).sort()).toEqual(["src/styles/skins/NOTICE.md", "src/styles/skins/base.css"])
+    expect(output()).toContain('theme-ocean: import src/styles/skins/ocean.css after src/styles/index.css and set data-skin="ocean" on <html>')
+  })
+
+  it("paths.themes remaps the skin folder", async () => {
+    writeConfig("svelte", { paths: { themes: "theme/brand" } })
+    await addCommand(["theme-ocean"], { force: true, cache: false })
+    expect(has("src/theme/brand/ocean.css")).toBe(true)
+    expect(has("src/theme/brand/base.css")).toBe(true)
+    expect(has("src/styles/skins/ocean.css")).toBe(false)
+  })
+
+  it("--all leaves the themes out (a skin is a choice)", async () => {
+    writeConfig("svelte")
+    await addCommand([], { all: true, force: true, cache: false })
+    expect(has("src/blocks/hero-split.svelte")).toBe(true)
+    expect(has("src/styles/skins/ocean.css")).toBe(false)
+  })
+})

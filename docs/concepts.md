@@ -51,6 +51,7 @@ All installs are rooted at `config.dir` (default `src`). Logical folders:
 | `layouts/` | `registry:layout` | Shells / chrome |
 | `variants/` | `registry:variants` | Variant maps / tokens |
 | `widgets/` | `registry:widget` | UI + light behavior |
+| `styles/skins/` | `registry:theme` | Skins: tokens CSS (colours, radius, shadows, fonts), `add theme-<skin>`; not in `--all` |
 | `.cursor/rules/` (app root, not under `dir`) | `registry:rules` | Agent rules, installed by `init` |
 
 ### Path remap

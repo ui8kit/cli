@@ -90,3 +90,14 @@ describe("paths precedence (gap 3): CLI flag > config.paths by target prefix > f
     )
   })
 })
+
+describe("registry:theme targets", () => {
+  it("styles/skins/* follow paths.themes and nothing else", async () => {
+    const { mapTargetByPaths, applyPathOverrides } = await import("../../src/utils/paths.js")
+    const cfg = { paths: { themes: "brand", components: "ui8kit/components" } } as any
+    expect(mapTargetByPaths("styles/skins/ocean.css", "registry:theme", cfg)).toBe("brand/ocean.css")
+    expect(mapTargetByPaths("styles/theme.css", "registry:utils", cfg)).toBe("styles/theme.css")
+    expect(mapTargetByPaths("styles/skins/ocean.css", "registry:theme", { paths: {} } as any)).toBe("styles/skins/ocean.css")
+    expect(applyPathOverrides({ paths: {} } as any, ["themes=css/skins"]).paths?.themes).toBe("css/skins")
+  })
+})

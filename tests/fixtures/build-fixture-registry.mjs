@@ -138,10 +138,21 @@ export function fixtureItems(rt) {
       ["feature-grid", "section-frame", "button", "presets", "utils"],
     ),
   )
+  // skins (registry:theme): runtime independent tokens CSS under styles/skins/
+  items.push(
+    item(rt, "theme-base", "registry:theme", [
+      ["styles/skins/base.css", ":where([data-skin]:not(:root)) { --radius: 0.5rem; }\n"],
+      ["styles/skins/NOTICE.md", "Synthetic notice\n"],
+    ]),
+    item(rt, "theme-ocean", "registry:theme", [["styles/skins/ocean.css", '[data-skin="ocean"] { --primary: hsl(200 80% 40%); }\n']], ["theme-base"], {
+      meta: { kind: "theme", skin: { id: "ocean", name: "Ocean" } },
+    }),
+  )
   return items
 }
 
 const FOLDER = {
+  "registry:theme": "themes",
   "registry:ui": "components/ui",
   "registry:component": "components",
   "registry:block": "blocks",

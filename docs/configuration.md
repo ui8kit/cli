@@ -71,7 +71,7 @@ Validated with Zod at read time. Legacy `framework: "vite-react"` is soft-migrat
 
 All optional; values are relative to `dir` (no leading `./` required):
 
-`lib` · `utils` · `components` · `ui` · `blocks` · `layouts` · `variants` · `widgets`
+`lib` · `utils` · `components` · `ui` · `blocks` · `layouts` · `variants` · `widgets` · `themes` (3.5.0+: the folder of `registry:theme` files, default `styles/skins`; `init` neither creates it nor adds an alias)
 
 ### `paths` precedence with registry `target`
 
@@ -82,6 +82,8 @@ Registry files usually carry a `target` (e.g. `ui/button/button.svelte` in 3.x, 
    - if the target starts with a canonical folder — `components/ui` → `ui`, `components` → `components`, `blocks`, `layouts`, `variants`, `widgets`, `utils`, `lib` (longest match first) — that prefix is replaced by the configured folder;
    - otherwise the target's first folder (e.g. `primitives/`, `presets/`) is treated as the item type's own folder and replaced by `paths[<key of the item type>]` (`registry:ui` → `ui`, `registry:lib` → `lib`, …).
 3. **The file's `target`** (unchanged), when no `paths` entry applies.
+
+Theme files (`registry:theme`, targets `styles/skins/<file>`) follow only `paths.themes`: `{ "paths": { "themes": "theme/brand" } }` writes `theme-claude` to `src/theme/brand/claude.css`.
 
 Everything is relative to `dir`; keys you did not configure are not remapped. Without `paths` and without `--path` behaviour is exactly as in 2.0.0/2.0.1. Files without `target` keep using `paths` as before.
 
